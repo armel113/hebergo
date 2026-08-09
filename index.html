@@ -163,13 +163,13 @@
         <p class="page-sub">Enregistrer un nouveau client</p>
         <div class="card-form">
           <label>Nom du client</label>
-          <input type="text" id="ciName" placeholder="Nom et prénom">
+          <input type="text" id="ciName" placeholder="Nom et prénom" maxlength="60">
           <label>Téléphone</label>
-          <input type="tel" id="ciPhone" placeholder="07 00 00 00 00">
+          <input type="tel" id="ciPhone" placeholder="07 00 00 00 00" maxlength="20" pattern="[0-9+ ]*" inputmode="tel">
           <label>Chambre</label>
           <select class="field" id="ciRoom"></select>
           <label>Nuits</label>
-          <input type="number" id="ciNights" value="1" min="1">
+          <input type="number" id="ciNights" value="1" min="1" max="90">
           <button class="btn-primary" onclick="doCheckin()">Enregistrer le client</button>
         </div>
       </section>
@@ -181,7 +181,7 @@
           <label>Chambre / client</label>
           <select class="field" id="payRoom"></select>
           <label>Montant (FCFA)</label>
-          <input type="number" id="payAmount" placeholder="15000">
+          <input type="number" id="payAmount" placeholder="15000" min="0" max="5000000" maxlength="9">
           <label>Mode de paiement</label>
           <div class="pill-choice" id="payMode">
             <div class="pill sel" data-mode="Espèces">Espèces</div>
@@ -439,8 +439,10 @@ window.doCheckin = async function(){
   const name = document.getElementById('ciName').value.trim();
   const phone = document.getElementById('ciPhone').value.trim();
   const roomId = document.getElementById('ciRoom').value;
-  const nights = parseInt(document.getElementById('ciNights').value) || 1;
-  if(!name || !roomId){ toast('Nom et chambre requis'); return; }
+  let nights = parseInt(document.getElementById('ciNights').value) || 1;
+  if(nights < 1) nights = 1;
+  if(nights > 90) nights = 90;
+  if(!name || name.length < 2 || !roomId){ toast('Nom (2 caractères min) et chambre requis'); return; }
 
   await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), {
     statut: 'occupee', client: name, departAujourdhui: nights<=1
@@ -467,15 +469,19 @@ document.querySelectorAll('#payMode .pill').forEach(p=>{
     p.classList.add('sel');
   });
 });
+const MONTANT_MAX = 5000000; // 5 millions FCFA par transaction — plafond raisonnable pour une chambre
 document.getElementById('payAmount').addEventListener('input', e=>{
-  const v = parseInt(e.target.value)||0;
+  let v = parseInt(e.target.value)||0;
+  if(v > MONTANT_MAX){ v = MONTANT_MAX; e.target.value = v; }
+  if(v < 0){ v = 0; e.target.value = v; }
   document.getElementById('payPreview').textContent = v.toLocaleString('fr-FR')+' FCFA';
 });
 window.doPayment = async function(){
-  const amount = parseInt(document.getElementById('payAmount').value)||0;
+  let amount = parseInt(document.getElementById('payAmount').value)||0;
   const roomSel = document.getElementById('payRoom');
   const mode = document.querySelector('#payMode .pill.sel').dataset.mode;
   if(amount<=0 || !roomSel.value){ toast('Chambre et montant requis'); return; }
+  if(amount > MONTANT_MAX){ toast('Montant trop élevé (max '+MONTANT_MAX.toLocaleString('fr-FR')+' FCFA)'); return; }
 
   await addDoc(collection(db, 'etablissements', currentEtabId, 'transactions'), {
     montant: amount, mode, chambreId: roomSel.value,
