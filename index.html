@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Hébergo — Gestion résidence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12241f; --ink-soft:#4d6259; --ink-faint:#8ea79c;
+    --paper:#f6f4ee; --card:#ffffff; --line:#e2ddd0;
+    --teal:#0f6e56; --teal-deep:#0a4f3e; --teal-tint:#e1f0ea;
+    --coral:#c9522b; --coral-tint:#fbe9e1;
+    --amber:#b8791a; --amber-tint:#f7ecd8;
+    --radius-lg:20px; --radius-md:14px; --radius-sm:9px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:#d9d3c1;font-family:'Manrope',sans-serif;color:var(--ink);}
+  body{display:flex;justify-content:center;min-height:100vh;}
+  #app{width:100%;max-width:430px;min-height:100vh;background:var(--paper);display:flex;flex-direction:column;position:relative;box-shadow:0 0 40px rgba(0,0,0,.15);}
+
+  /* --- écran auth --- */
+  #authScreen{flex:1;display:flex;flex-direction:column;justify-content:center;padding:32px 26px;}
+  #authScreen .mark{width:52px;height:52px;border-radius:16px;background:var(--teal);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin-bottom:18px;}
+  #authScreen h1{font-family:'Fraunces',serif;font-size:26px;margin:0 0 4px;}
+  #authScreen p.sub{font-size:13.5px;color:var(--ink-soft);margin:0 0 26px;}
+  #authError{font-size:12.5px;color:var(--coral);margin:8px 0 0;display:none;}
+
+  header.top{padding:22px 20px 16px;display:flex;align-items:center;justify-content:space-between;}
+  header.top .brand{display:flex;align-items:center;gap:10px;}
+  header.top .mark{width:34px;height:34px;border-radius:10px;background:var(--teal);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Fraunces',serif;font-weight:600;font-size:16px;}
+  header.top .estab{font-size:12px;color:var(--ink-soft);margin:0;line-height:1.2;}
+  header.top .estab b{color:var(--ink);font-weight:600;}
+  header.top button.logout{border:none;background:transparent;font-size:11.5px;color:var(--ink-faint);font-weight:600;}
+
+  main{flex:1;padding:0 20px 100px;overflow-y:auto;}
+  .screen{display:none;animation:fade .25s ease;}
+  .screen.active{display:block;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+  h1.page-title{font-family:'Fraunces',serif;font-size:23px;font-weight:600;margin:2px 0 4px;letter-spacing:-.2px;}
+  p.page-sub{font-size:13px;color:var(--ink-soft);margin:0 0 18px;}
+
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-md);padding:14px 16px;}
+  .stat .lbl{font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;margin:0 0 4px;}
+  .stat .val{font-family:'Fraunces',serif;font-size:24px;font-weight:600;margin:0;}
+  .stat .val small{font-size:13px;color:var(--ink-faint);font-family:'Manrope';font-weight:500;}
+
+  .section-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);margin:22px 0 10px;font-weight:600;}
+
+  .depart-item{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;}
+  .depart-item .num{width:36px;height:36px;border-radius:10px;background:var(--teal-tint);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;}
+  .depart-item .info p{margin:0;}
+  .depart-item .name{font-size:13px;font-weight:600;}
+  .depart-item .meta{font-size:11.5px;color:var(--ink-soft);}
+  .depart-item .btn-mini{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:11px;padding:6px 10px;font-weight:600;color:var(--teal-deep);}
+
+  .empty{text-align:center;padding:26px 10px;color:var(--ink-faint);font-size:13px;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius-md);}
+
+  .room-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;}
+  .room{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:15px;border:none;cursor:pointer;color:var(--teal-deep);gap:2px;}
+  .room.libre{background:var(--teal-tint);color:var(--teal-deep);}
+  .room.occupee{background:var(--coral-tint);color:var(--coral);}
+  .room.nettoyage{background:var(--amber-tint);color:var(--amber);}
+  .legend{display:flex;gap:14px;margin-top:16px;font-size:11.5px;color:var(--ink-soft);flex-wrap:wrap;}
+  .legend i{width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:middle;}
+
+  .card-form{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;}
+  label{display:block;font-size:11.5px;font-weight:600;color:var(--ink-soft);margin:14px 0 6px;}
+  label:first-child{margin-top:0;}
+  input[type=text],input[type=tel],input[type=number],input[type=email],input[type=password],select.field{
+    width:100%;border:1px solid var(--line);background:var(--paper);border-radius:var(--radius-sm);padding:11px 12px;font-size:14px;font-family:'Manrope';color:var(--ink);
+  }
+  input:focus,select.field:focus{outline:2px solid var(--teal);outline-offset:1px;}
+  .pill-choice{display:flex;gap:8px;}
+  .pill-choice .pill{flex:1;border:1px solid var(--line);background:var(--paper);border-radius:var(--radius-sm);padding:10px;text-align:center;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;}
+  .pill-choice .pill.sel{background:var(--teal);border-color:var(--teal);color:#fff;}
+  .amount-display{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-md);padding:16px;text-align:center;margin-top:6px;}
+  .amount-display .n{font-family:'Fraunces',serif;font-size:26px;font-weight:600;}
+
+  .btn-primary{width:100%;background:var(--teal);color:#fff;border:none;border-radius:var(--radius-sm);padding:14px;font-size:14px;font-weight:700;margin-top:20px;cursor:pointer;font-family:'Manrope';}
+  .btn-primary:active{background:var(--teal-deep);}
+  .btn-primary:disabled{opacity:.55;}
+  .btn-ghost{width:100%;background:transparent;color:var(--ink-soft);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;font-size:13px;font-weight:600;margin-top:10px;cursor:pointer;}
+
+  .toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:10px 18px;border-radius:30px;font-size:12.5px;font-weight:600;opacity:0;transition:all .25s ease;pointer-events:none;z-index:50;white-space:nowrap;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  nav.tabbar{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding:8px 10px 18px;}
+  nav.tabbar button{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 2px;color:var(--ink-faint);font-family:'Manrope';font-size:10.5px;font-weight:600;cursor:pointer;}
+  nav.tabbar button.active{color:var(--teal-deep);}
+  nav.tabbar svg{width:20px;height:20px;}
+
+  .modal-wrap{position:absolute;inset:0;background:rgba(18,36,31,.42);display:none;align-items:flex-end;z-index:40;}
+  .modal-wrap.show{display:flex;}
+  .modal{background:var(--card);width:100%;border-radius:22px 22px 0 0;padding:20px 20px 26px;max-height:80%;overflow-y:auto;}
+  .modal h3{font-family:'Fraunces',serif;font-size:18px;margin:0 0 2px;}
+  .modal p.sub{font-size:12.5px;color:var(--ink-soft);margin:0 0 16px;}
+  .status-opt{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid var(--line);font-size:13.5px;font-weight:600;cursor:pointer;}
+  .status-opt:last-of-type{border-bottom:none;}
+  .status-opt .sw{width:14px;height:14px;border-radius:4px;}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ÉCRAN CONNEXION -->
+  <div id="authScreen">
+    <div class="mark">H</div>
+    <h1>Hébergo</h1>
+    <p class="sub">Connecte-toi pour gérer ton établissement</p>
+    <div class="card-form">
+      <label>Email</label>
+      <input type="email" id="authEmail" placeholder="toi@exemple.com">
+      <label>Mot de passe</label>
+      <input type="password" id="authPassword" placeholder="••••••••">
+      <p id="authError"></p>
+      <button class="btn-primary" id="authSubmitBtn" onclick="handleLogin()">Se connecter</button>
+    </div>
+  </div>
+
+  <!-- APP PRINCIPALE (visible après connexion) -->
+  <div id="mainApp" class="hidden" style="display:none;flex-direction:column;flex:1;">
+
+    <header class="top">
+      <div class="brand">
+        <div class="mark">H</div>
+        <p class="estab">Bonjour<br><b id="estabName">—</b></p>
+      </div>
+      <button class="logout" onclick="handleLogout()">Déconnexion</button>
+    </header>
+
+    <main>
+      <section class="screen active" id="screen-accueil">
+        <h1 class="page-title">Aujourd'hui</h1>
+        <p class="page-sub" id="todayDate"></p>
+        <div class="stat-row">
+          <div class="stat"><p class="lbl">Occupées</p><p class="val" id="statOcc">-<small>/0</small></p></div>
+          <div class="stat"><p class="lbl">Arrivées prévues</p><p class="val" id="statArr">-</p></div>
+        </div>
+        <p class="section-lbl">Départs aujourd'hui</p>
+        <div id="departList"><div class="empty">Chargement…</div></div>
+        <p class="section-lbl">Encaissé aujourd'hui</p>
+        <div class="stat" style="margin-bottom:0;"><p class="lbl">Total</p><p class="val" id="statCash">0 <small>FCFA</small></p></div>
+      </section>
+
+      <section class="screen" id="screen-chambres">
+        <h1 class="page-title">Chambres</h1>
+        <p class="page-sub">Touchez une chambre pour changer son statut</p>
+        <div class="room-grid" id="roomGrid"></div>
+        <div class="legend">
+          <span><i style="background:var(--teal)"></i>Libre</span>
+          <span><i style="background:var(--coral)"></i>Occupée</span>
+          <span><i style="background:var(--amber)"></i>À nettoyer</span>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-checkin">
+        <h1 class="page-title">Check-in</h1>
+        <p class="page-sub">Enregistrer un nouveau client</p>
+        <div class="card-form">
+          <label>Nom du client</label>
+          <input type="text" id="ciName" placeholder="Nom et prénom">
+          <label>Téléphone</label>
+          <input type="tel" id="ciPhone" placeholder="07 00 00 00 00">
+          <label>Chambre</label>
+          <select class="field" id="ciRoom"></select>
+          <label>Nuits</label>
+          <input type="number" id="ciNights" value="1" min="1">
+          <button class="btn-primary" onclick="doCheckin()">Enregistrer le client</button>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-caisse">
+        <h1 class="page-title">Encaissement</h1>
+        <p class="page-sub">Enregistrer un paiement client</p>
+        <div class="card-form">
+          <label>Chambre / client</label>
+          <select class="field" id="payRoom"></select>
+          <label>Montant (FCFA)</label>
+          <input type="number" id="payAmount" placeholder="15000">
+          <label>Mode de paiement</label>
+          <div class="pill-choice" id="payMode">
+            <div class="pill sel" data-mode="Espèces">Espèces</div>
+            <div class="pill" data-mode="Mobile money">Mobile money (QR)</div>
+          </div>
+          <div class="amount-display"><p class="n" id="payPreview">0 FCFA</p></div>
+          <button class="btn-primary" onclick="doPayment()">Confirmer le paiement</button>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal-wrap" id="roomModal">
+      <div class="modal">
+        <h3 id="modalRoomTitle">Chambre</h3>
+        <p class="sub">Changer le statut</p>
+        <div class="status-opt" data-s="libre"><span>Libre</span><span class="sw" style="background:var(--teal)"></span></div>
+        <div class="status-opt" data-s="occupee"><span>Occupée</span><span class="sw" style="background:var(--coral)"></span></div>
+        <div class="status-opt" data-s="nettoyage"><span>À nettoyer</span><span class="sw" style="background:var(--amber)"></span></div>
+        <button class="btn-ghost" onclick="closeModal()">Fermer</button>
+      </div>
+    </div>
+
+    <nav class="tabbar">
+      <button class="tab-btn active" data-screen="accueil">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+        Accueil
+      </button>
+      <button class="tab-btn" data-screen="chambres">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        Chambres
+      </button>
+      <button class="tab-btn" data-screen="checkin">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+        Check-in
+      </button>
+      <button class="tab-btn" data-screen="caisse">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 10h20"/></svg>
+        Caisse
+      </button>
+    </nav>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script type="module">
+/* ==================================================================
+   CONFIG FIREBASE
+   Remplace ces valeurs par celles de TON projet Firebase
+   (Console Firebase > Paramètres du projet > Tes applications > Config).
+   Recommandé : crée un nouveau projet "hebergo" séparé de
+   "residence-biagne" pour ne pas toucher ta prod actuelle pendant
+   qu'on construit le multi-établissements.
+================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBTv0Y2Fjx8ZmsLMNQiq-5cKUckOBjYiHY",
+  authDomain: "hebergo-4a1a9.firebaseapp.com",
+  projectId: "hebergo-4a1a9",
+  storageBucket: "hebergo-4a1a9.firebasestorage.app",
+  messagingSenderId: "1057476981604",
+  appId: "1:1057476981604:web:f45d2e25d29f55142d0071"
+};
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, collection, collectionGroup, doc, getDoc, getDocs,
+  query, where, onSnapshot, updateDoc, addDoc, deleteDoc, serverTimestamp,
+  Timestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+let currentUser = null;
+let currentEtabId = null;
+let unsubRooms = null;
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------------- AUTH ---------------- */
+window.handleLogin = async function(){
+  const email = document.getElementById('authEmail').value.trim();
+  const pass = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authError');
+  const btn = document.getElementById('authSubmitBtn');
+  errEl.style.display = 'none';
+  if(!email || !pass){ errEl.textContent = 'Email et mot de passe requis'; errEl.style.display='block'; return; }
+  btn.disabled = true; btn.textContent = 'Connexion…';
+  try{
+    await signInWithEmailAndPassword(auth, email, pass);
+  }catch(e){
+    errEl.textContent = 'Identifiants incorrects, réessaie.';
+    errEl.style.display = 'block';
+  }finally{
+    btn.disabled = false; btn.textContent = 'Se connecter';
+  }
+};
+
+window.handleLogout = function(){ signOut(auth); };
+
+onAuthStateChanged(auth, async (user) => {
+  currentUser = user;
+  if(user){
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'flex';
+    await resolveEstablishment(user.uid);
+  } else {
+    document.getElementById('authScreen').style.display = 'flex';
+    document.getElementById('mainApp').style.display = 'none';
+    if(unsubRooms) unsubRooms();
+  }
+});
+
+// Trouve le/les établissements où cet utilisateur est membre
+// (collectionGroup sur "membres" filtré par uid, cf. règles de sécurité)
+async function resolveEstablishment(uid){
+  const q = query(collectionGroup(db, 'membres'), where('__name__', '==', uid));
+  // Note : Firestore ne permet pas de filtrer un collectionGroup par le nom du
+  // document directement dans tous les SDK — en pratique, structure recommandée :
+  // stocker aussi le uid en tant que champ sur le doc membre pour pouvoir le
+  // requêter simplement : where('uid','==',uid).
+  const snap = await getDocs(query(collectionGroup(db, 'membres'), where('uid', '==', uid)));
+  if(snap.empty){
+    toast('Aucun établissement associé à ce compte.');
+    return;
+  }
+  // Pour la démo : on prend le premier établissement trouvé.
+  // Multi-établissements réel = écran de sélection à ajouter ici.
+  const membreDoc = snap.docs[0];
+  currentEtabId = membreDoc.ref.parent.parent.id;
+  const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
+  document.getElementById('estabName').textContent = etabSnap.exists() ? etabSnap.data().nom : currentEtabId;
+  listenRooms();
+}
+
+/* ---------------- NAVIGATION ---------------- */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('screen-'+btn.dataset.screen).classList.add('active');
+    if(btn.dataset.screen==='checkin') renderCheckinOptions();
+    if(btn.dataset.screen==='caisse') renderPayOptions();
+  });
+});
+
+/* ---------------- DONNÉES (Firestore temps réel) ---------------- */
+let roomsCache = [];
+
+function listenRooms(){
+  if(!currentEtabId) return;
+  const roomsRef = collection(db, 'etablissements', currentEtabId, 'chambres');
+  unsubRooms = onSnapshot(roomsRef, (snap)=>{
+    roomsCache = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>a.numero-b.numero);
+    renderAccueil();
+    renderRooms();
+    renderCheckinOptions();
+    renderPayOptions();
+  }, (err)=>{
+    toast('Erreur de lecture des chambres : ' + err.message);
+  });
+}
+
+function renderAccueil(){
+  document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+  const occ = roomsCache.filter(r=>r.statut==='occupee').length;
+  document.getElementById('statOcc').innerHTML = occ + '<small>/'+roomsCache.length+'</small>';
+
+  const departs = roomsCache.filter(r=>r.statut==='occupee' && r.departAujourdhui);
+  document.getElementById('statArr').textContent = departs.length;
+
+  const list = document.getElementById('departList');
+  if(departs.length===0){
+    list.innerHTML = '<div class="empty">Aucun départ prévu aujourd\'hui</div>';
+  } else {
+    list.innerHTML = departs.map(d=>`
+      <div class="depart-item">
+        <div class="num">${d.numero}</div>
+        <div class="info">
+          <p class="name">Chambre ${d.numero} · ${d.client || ''}</p>
+          <p class="meta">Départ aujourd'hui</p>
+        </div>
+        <button class="btn-mini" onclick="markDeparted('${d.id}', ${d.numero})">Départ fait</button>
+      </div>
+    `).join('');
+  }
+  // Le total encaissé du jour se calcule normalement via une requête sur
+  // /transactions filtrée par date — simplifié ici en valeur statique.
+}
+
+window.markDeparted = async function(roomId, num){
+  await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), {
+    statut: 'nettoyage', client: null, departAujourdhui: false
+  });
+  toast('Départ enregistré, chambre '+num+' à nettoyer');
+};
+
+function renderRooms(){
+  const grid = document.getElementById('roomGrid');
+  grid.innerHTML = roomsCache.map(r=>`
+    <button class="room ${r.statut}" onclick="openRoomModal('${r.id}', ${r.numero})">${r.numero}</button>
+  `).join('');
+}
+
+let activeRoomModalId = null, activeRoomModalNum = null;
+window.openRoomModal = function(id, num){
+  activeRoomModalId = id; activeRoomModalNum = num;
+  document.getElementById('modalRoomTitle').textContent = 'Chambre ' + num;
+  document.getElementById('roomModal').classList.add('show');
+};
+window.closeModal = function(){ document.getElementById('roomModal').classList.remove('show'); };
+document.querySelectorAll('.status-opt').forEach(opt=>{
+  opt.addEventListener('click', async ()=>{
+    const s = opt.dataset.s;
+    const updates = { statut: s };
+    if(s!=='occupee') updates.client = null;
+    await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', activeRoomModalId), updates);
+    closeModal();
+    toast('Chambre '+activeRoomModalNum+' mise à jour');
+  });
+});
+
+function renderCheckinOptions(){
+  const sel = document.getElementById('ciRoom');
+  const free = roomsCache.filter(r=>r.statut==='libre');
+  sel.innerHTML = free.length
+    ? free.map(r=>`<option value="${r.id}">Chambre ${r.numero}</option>`).join('')
+    : `<option value="">Aucune chambre libre</option>`;
+}
+window.doCheckin = async function(){
+  const name = document.getElementById('ciName').value.trim();
+  const phone = document.getElementById('ciPhone').value.trim();
+  const roomId = document.getElementById('ciRoom').value;
+  const nights = parseInt(document.getElementById('ciNights').value) || 1;
+  if(!name || !roomId){ toast('Nom et chambre requis'); return; }
+
+  await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), {
+    statut: 'occupee', client: name, departAujourdhui: nights<=1
+  });
+  await addDoc(collection(db, 'etablissements', currentEtabId, 'clients'), {
+    nom: name, telephone: phone, nuits: nights, dateArrivee: serverTimestamp()
+  });
+  document.getElementById('ciName').value='';
+  document.getElementById('ciPhone').value='';
+  document.getElementById('ciNights').value=1;
+  toast(name+' installé(e)');
+};
+
+function renderPayOptions(){
+  const sel = document.getElementById('payRoom');
+  const occ = roomsCache.filter(r=>r.statut==='occupee');
+  sel.innerHTML = occ.length
+    ? occ.map(r=>`<option value="${r.id}" data-num="${r.numero}">Chambre ${r.numero} · ${r.client||''}</option>`).join('')
+    : `<option value="">Aucun client en séjour</option>`;
+}
+document.querySelectorAll('#payMode .pill').forEach(p=>{
+  p.addEventListener('click', ()=>{
+    document.querySelectorAll('#payMode .pill').forEach(x=>x.classList.remove('sel'));
+    p.classList.add('sel');
+  });
+});
+document.getElementById('payAmount').addEventListener('input', e=>{
+  const v = parseInt(e.target.value)||0;
+  document.getElementById('payPreview').textContent = v.toLocaleString('fr-FR')+' FCFA';
+});
+window.doPayment = async function(){
+  const amount = parseInt(document.getElementById('payAmount').value)||0;
+  const roomSel = document.getElementById('payRoom');
+  const mode = document.querySelector('#payMode .pill.sel').dataset.mode;
+  if(amount<=0 || !roomSel.value){ toast('Chambre et montant requis'); return; }
+
+  await addDoc(collection(db, 'etablissements', currentEtabId, 'transactions'), {
+    montant: amount, mode, chambreId: roomSel.value,
+    numeroChambre: roomSel.selectedOptions[0].dataset.num,
+    date: serverTimestamp()
+  });
+  document.getElementById('payAmount').value='';
+  document.getElementById('payPreview').textContent='0 FCFA';
+  toast('Paiement de '+amount.toLocaleString('fr-FR')+' FCFA confirmé');
+};
+</script>
+</body>
+</html>
