@@ -310,20 +310,27 @@ onAuthStateChanged(auth, async (user) => {
 
 // Trouve le/les établissements où cet utilisateur est membre
 // (collectionGroup sur "membres" filtré par uid, cf. règles de sécurité)
+// Version simplifiée pour la phase de test : un seul établissement connu.
+// Quand il y aura plusieurs établissements par utilisateur, on remplacera
+// ceci par un vrai écran de sélection (liste des étabId où l'utilisateur
+// est membre), mais sans dépendre d'une requête collectionGroup fragile.
+const ETAB_ID_ACTUEL = 'residence-biagne';
+
 async function resolveEstablishment(uid){
-  const snap = await getDocs(query(collectionGroup(db, 'membres'), where('uid', '==', uid)));
-  if(snap.empty){
-    toast('Aucun établissement associé à ce compte.');
-    return;
+  try{
+    const membreSnap = await getDoc(doc(db, 'etablissements', ETAB_ID_ACTUEL, 'membres', uid));
+    if(!membreSnap.exists()){
+      toast('Ton compte n\'est pas membre de cet établissement.');
+      return;
+    }
+    currentEtabId = ETAB_ID_ACTUEL;
+    const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
+    document.getElementById('estabName').textContent = etabSnap.exists() ? etabSnap.data().nom : currentEtabId;
+    listenRooms();
+    listenTransactionsToday();
+  }catch(err){
+    toast('Erreur : ' + err.message);
   }
-  // Pour la démo : on prend le premier établissement trouvé.
-  // Multi-établissements réel = écran de sélection à ajouter ici.
-  const membreDoc = snap.docs[0];
-  currentEtabId = membreDoc.ref.parent.parent.id;
-  const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
-  document.getElementById('estabName').textContent = etabSnap.exists() ? etabSnap.data().nom : currentEtabId;
-  listenRooms();
-  listenTransactionsToday();
 }
 
 /* ---------------- NAVIGATION ---------------- */
