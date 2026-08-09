@@ -435,6 +435,11 @@ function renderCheckinOptions(){
     ? free.map(r=>`<option value="${r.id}">Chambre ${r.numero}</option>`).join('')
     : `<option value="">Aucune chambre libre</option>`;
 }
+document.getElementById('ciPhone').addEventListener('input', e=>{
+  const digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+  // Reformate en "07 00 00 00 00" au fur et à mesure de la frappe
+  e.target.value = digits.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
+});
 window.doCheckin = async function(){
   const name = document.getElementById('ciName').value.trim();
   const phone = document.getElementById('ciPhone').value.trim();
