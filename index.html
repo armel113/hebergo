@@ -438,17 +438,19 @@ function renderCheckinOptions(){
 window.doCheckin = async function(){
   const name = document.getElementById('ciName').value.trim();
   const phone = document.getElementById('ciPhone').value.trim();
+  const phoneDigits = phone.replace(/[^0-9]/g, '');
   const roomId = document.getElementById('ciRoom').value;
   let nights = parseInt(document.getElementById('ciNights').value) || 1;
   if(nights < 1) nights = 1;
   if(nights > 90) nights = 90;
   if(!name || name.length < 2 || !roomId){ toast('Nom (2 caractères min) et chambre requis'); return; }
+  if(phone && phoneDigits.length !== 10){ toast('Téléphone : 10 chiffres attendus (ex. 0700000000)'); return; }
 
   await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), {
     statut: 'occupee', client: name, departAujourdhui: nights<=1
   });
   await addDoc(collection(db, 'etablissements', currentEtabId, 'clients'), {
-    nom: name, telephone: phone, nuits: nights, dateArrivee: serverTimestamp()
+    nom: name, telephone: phoneDigits, nuits: nights, dateArrivee: serverTimestamp()
   });
   document.getElementById('ciName').value='';
   document.getElementById('ciPhone').value='';
