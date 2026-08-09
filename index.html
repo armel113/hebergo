@@ -306,11 +306,6 @@ onAuthStateChanged(auth, async (user) => {
 // Trouve le/les établissements où cet utilisateur est membre
 // (collectionGroup sur "membres" filtré par uid, cf. règles de sécurité)
 async function resolveEstablishment(uid){
-  const q = query(collectionGroup(db, 'membres'), where('__name__', '==', uid));
-  // Note : Firestore ne permet pas de filtrer un collectionGroup par le nom du
-  // document directement dans tous les SDK — en pratique, structure recommandée :
-  // stocker aussi le uid en tant que champ sur le doc membre pour pouvoir le
-  // requêter simplement : where('uid','==',uid).
   const snap = await getDocs(query(collectionGroup(db, 'membres'), where('uid', '==', uid)));
   if(snap.empty){
     toast('Aucun établissement associé à ce compte.');
