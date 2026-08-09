@@ -294,7 +294,9 @@ onAuthStateChanged(auth, async (user) => {
   currentUser = user;
   if(user){
     document.getElementById('authScreen').style.display = 'none';
-    document.getElementById('mainApp').style.display = 'flex';
+    const mainApp = document.getElementById('mainApp');
+    mainApp.classList.remove('hidden');
+    mainApp.style.display = 'flex';
     await resolveEstablishment(user.uid);
   } else {
     document.getElementById('authScreen').style.display = 'flex';
