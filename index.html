@@ -262,6 +262,8 @@ const db = getFirestore(app);
 let currentUser = null;
 let currentEtabId = null;
 let unsubRooms = null;
+let unsubTx = null;
+let cashToday = 0;
 
 function toast(msg){
   const t = document.getElementById('toast');
@@ -302,6 +304,7 @@ onAuthStateChanged(auth, async (user) => {
     document.getElementById('authScreen').style.display = 'flex';
     document.getElementById('mainApp').style.display = 'none';
     if(unsubRooms) unsubRooms();
+    if(unsubTx) unsubTx();
   }
 });
 
@@ -320,6 +323,7 @@ async function resolveEstablishment(uid){
   const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
   document.getElementById('estabName').textContent = etabSnap.exists() ? etabSnap.data().nom : currentEtabId;
   listenRooms();
+  listenTransactionsToday();
 }
 
 /* ---------------- NAVIGATION ---------------- */
@@ -351,6 +355,22 @@ function listenRooms(){
   });
 }
 
+function listenTransactionsToday(){
+  if(!currentEtabId) return;
+  const start = new Date(); start.setHours(0,0,0,0);
+  const startTs = Timestamp.fromDate(start);
+  const txRef = collection(db, 'etablissements', currentEtabId, 'transactions');
+  const q = query(txRef, where('date', '>=', startTs));
+  unsubTx = onSnapshot(q, (snap)=>{
+    cashToday = snap.docs.reduce((sum, d)=> sum + (d.data().montant || 0), 0);
+    document.getElementById('statCash').innerHTML = cashToday.toLocaleString('fr-FR') + ' <small>FCFA</small>';
+  }, (err)=>{
+    // Si l'index composite pour cette requête (date + etabId) n'existe pas encore,
+    // Firebase affichera un lien de création dans la console du navigateur.
+    toast('Erreur de lecture des transactions : ' + err.message);
+  });
+}
+
 function renderAccueil(){
   document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
   const occ = roomsCache.filter(r=>r.statut==='occupee').length;
@@ -374,8 +394,6 @@ function renderAccueil(){
       </div>
     `).join('');
   }
-  // Le total encaissé du jour se calcule normalement via une requête sur
-  // /transactions filtrée par date — simplifié ici en valeur statique.
 }
 
 window.markDeparted = async function(roomId, num){
