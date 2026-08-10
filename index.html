@@ -399,7 +399,7 @@ currentUserRole = userSnap.data().role || null;
 if(currentUserRole==='super_admin'){
 document.getElementById('btnAdminPlateforme').classList.remove('hidden');
 }
-if(currentUserRole==='admin'){
+if(currentUserRole==='admin' || currentUserRole==='super_admin'){
 document.getElementById('btnEquipe').classList.remove('hidden');
 }
 const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
@@ -430,7 +430,7 @@ document.getElementById('screen-adminplateforme').classList.add('active');
 await chargerListeEtablissements();
 };
 window.openEquipe = async function(){
-if(currentUserRole!=='admin'){ toast('Accès réservé.'); return; }
+if(currentUserRole!=='admin' && currentUserRole!=='super_admin'){ toast('Accès réservé.'); return; }
 document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
 document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
 document.getElementById('screen-equipe').classList.add('active');
