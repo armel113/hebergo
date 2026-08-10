@@ -136,6 +136,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <p class="estab">Bonjour<br><b id="estabName">—</b></p>
 </div>
 <div style="display:flex;align-items:center;gap:14px;">
+<button class="logout hidden" id="btnEquipe" onclick="openEquipe()">Équipe</button>
 <button class="logout hidden" id="btnAdminPlateforme" onclick="openAdminPlateforme()">Plateforme</button>
 <button class="logout" onclick="handleLogout()">Déconnexion</button>
 </div>
@@ -233,11 +234,13 @@ nav.tabbar svg{width:20px;height:20px;}
 <input type="number" id="newEtabChambres" placeholder="40" min="1" max="300">
 <button class="btn-primary" onclick="creerEtablissement()">Créer l'établissement</button>
 </div>
-<p class="section-lbl">Rattacher un compte à un établissement</p>
-<p class="page-sub" style="margin-top:-10px;">Crée d'abord le compte (email/mot de passe) dans Firebase Authentication, puis colle son identifiant (UID) ici.</p>
+<p class="section-lbl">Créer un compte pour un établissement</p>
+<p class="page-sub" style="margin-top:-10px;">Crée directement le compte de connexion du client, sans passer par Firebase.</p>
 <div class="card-form">
-<label>UID du compte (Firebase Authentication)</label>
-<input type="text" id="linkUid" placeholder="Ex: aB12cD34...">
+<label>Email du client</label>
+<input type="email" id="linkEmail" placeholder="proprietaire@exemple.com">
+<label>Mot de passe temporaire</label>
+<input type="text" id="linkPassword" placeholder="Au moins 6 caractères">
 <label>Établissement</label>
 <select class="field" id="linkEtabSelect"></select>
 <label>Rôle</label>
@@ -245,8 +248,22 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="pill sel" data-role="admin">Admin (propriétaire)</div>
 <div class="pill" data-role="gerant">Gérant</div>
 </div>
-<button class="btn-primary" onclick="rattacherCompte()">Rattacher le compte</button>
+<button class="btn-primary" onclick="rattacherCompte()">Créer le compte</button>
 </div>
+</section>
+<section class="screen" id="screen-equipe">
+<p class="page-sub" style="cursor:pointer;margin-bottom:10px;" onclick="document.querySelector('.tab-btn[data-screen=accueil]').click()">← Retour</p>
+<h1 class="page-title">Mon équipe</h1>
+<p class="page-sub">Ajouter un gérant pour ton établissement</p>
+<div class="card-form">
+<label>Email du gérant</label>
+<input type="email" id="teamEmail" placeholder="gerant@exemple.com">
+<label>Mot de passe temporaire</label>
+<input type="text" id="teamPassword" placeholder="Au moins 6 caractères">
+<button class="btn-primary" onclick="creerGerant()">Créer le compte gérant</button>
+</div>
+<p class="section-lbl">Membres de l'équipe</p>
+<div id="teamList"><div class="empty">Chargement…</div></div>
 </section>
 </main>
 <div class="modal-wrap" id="roomModal">
@@ -295,7 +312,7 @@ appId: "1:287969264830:web:a27ebcbb64704ebb048aef"
 };
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
 getFirestore, collection, collectionGroup, doc, getDoc, getDocs,
@@ -305,6 +322,8 @@ Timestamp, orderBy, limit
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const secondaryApp = initializeApp(firebaseConfig, "Secondary");
+const secondaryAuth = getAuth(secondaryApp);
 let currentUser = null;
 let currentUserRole = null;
 let currentEtabId = null;
@@ -363,6 +382,9 @@ currentUserRole = userSnap.data().role || null;
 if(currentUserRole==='super_admin'){
 document.getElementById('btnAdminPlateforme').classList.remove('hidden');
 }
+if(currentUserRole==='admin'){
+document.getElementById('btnEquipe').classList.remove('hidden');
+}
 const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
 document.getElementById('estabName').textContent = etabSnap.exists() ? etabSnap.data().nom : currentEtabId;
 listenRooms();
@@ -389,6 +411,67 @@ document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
 document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
 document.getElementById('screen-adminplateforme').classList.add('active');
 await chargerListeEtablissements();
+};
+window.openEquipe = async function(){
+if(currentUserRole!=='admin'){ toast('Accès réservé.'); return; }
+document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+document.getElementById('screen-equipe').classList.add('active');
+await chargerEquipe();
+};
+async function chargerEquipe(){
+const el = document.getElementById('teamList');
+if(!el || !currentEtabId) return;
+try{
+const snap = await getDocs(collection(db, 'etablissements', currentEtabId, 'membres'));
+const membres = snap.docs.filter(d=>!currentUser || d.id !== currentUser.uid);
+if(membres.length===0){
+el.innerHTML = '<div class="empty">Aucun autre membre pour le moment</div>';
+return;
+}
+el.innerHTML = membres.map(d=>{
+const data = d.data();
+const roleLbl = data.role==='admin' ? 'Admin' : 'Gérant';
+return `
+<div class="tx-item">
+<div class="num">${roleLbl.slice(0,1)}</div>
+<div class="info">
+<p class="name">${data.email || d.id}</p>
+<p class="meta">${roleLbl}</p>
+</div>
+</div>
+`;
+}).join('');
+}catch(err){
+toast('Erreur de chargement de l\'équipe : ' + err.message);
+}
+}
+window.creerGerant = async function(){
+const email = document.getElementById('teamEmail').value.trim();
+const password = document.getElementById('teamPassword').value;
+if(!email || !email.includes('@')){ toast('Email invalide'); return; }
+if(!password || password.length < 6){ toast('Mot de passe : au moins 6 caractères'); return; }
+if(!currentEtabId){ toast('Établissement introuvable'); return; }
+const btn = document.querySelector('#screen-equipe .btn-primary');
+if(btn){ btn.disabled = true; btn.textContent = 'Création...'; }
+try{
+const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+const uid = cred.user.uid;
+await signOut(secondaryAuth);
+await setDoc(doc(db, 'utilisateurs', uid), { etablissementId: currentEtabId, role: 'gerant', email: email });
+await setDoc(doc(db, 'etablissements', currentEtabId, 'membres', uid), { role: 'gerant', email: email });
+toast('Compte gérant créé pour '+email);
+document.getElementById('teamEmail').value='';
+document.getElementById('teamPassword').value='';
+await chargerEquipe();
+}catch(err){
+let msg = err.message;
+if(err.code==='auth/email-already-in-use') msg = 'Cet email est déjà utilisé par un autre compte.';
+if(err.code==='auth/weak-password') msg = 'Mot de passe trop faible (6 caractères minimum).';
+toast('Erreur : ' + msg);
+}finally{
+if(btn){ btn.disabled = false; btn.textContent = 'Créer le compte gérant'; }
+}
 };
 let roomsCache = [];
 function listenRooms(){
@@ -811,18 +894,31 @@ p.classList.add('sel');
 });
 });
 window.rattacherCompte = async function(){
-const uid = document.getElementById('linkUid').value.trim();
+const email = document.getElementById('linkEmail').value.trim();
+const password = document.getElementById('linkPassword').value;
 const etabId = document.getElementById('linkEtabSelect').value;
 const role = document.querySelector('#linkRole .pill.sel').dataset.role;
-if(!uid || uid.length < 10){ toast('UID invalide'); return; }
+if(!email || !email.includes('@')){ toast('Email invalide'); return; }
+if(!password || password.length < 6){ toast('Mot de passe : au moins 6 caractères'); return; }
 if(!etabId){ toast('Choisis un établissement'); return; }
+const btn = document.querySelector('#screen-adminplateforme .card-form:nth-of-type(2) .btn-primary');
+if(btn){ btn.disabled = true; btn.textContent = 'Création...'; }
 try{
-await setDoc(doc(db, 'utilisateurs', uid), { etablissementId: etabId, role: role });
-await setDoc(doc(db, 'etablissements', etabId, 'membres', uid), { role: role });
-toast('Compte rattaché avec le rôle "'+role+'"');
-document.getElementById('linkUid').value='';
+const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+const uid = cred.user.uid;
+await signOut(secondaryAuth);
+await setDoc(doc(db, 'utilisateurs', uid), { etablissementId: etabId, role: role, email: email });
+await setDoc(doc(db, 'etablissements', etabId, 'membres', uid), { role: role, email: email });
+toast('Compte créé pour '+email+' (rôle '+role+')');
+document.getElementById('linkEmail').value='';
+document.getElementById('linkPassword').value='';
 }catch(err){
-toast('Erreur : ' + err.message);
+let msg = err.message;
+if(err.code==='auth/email-already-in-use') msg = 'Cet email est déjà utilisé par un autre compte.';
+if(err.code==='auth/weak-password') msg = 'Mot de passe trop faible (6 caractères minimum).';
+toast('Erreur : ' + msg);
+}finally{
+if(btn){ btn.disabled = false; btn.textContent = 'Créer le compte'; }
 }
 };
 </script>
