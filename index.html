@@ -122,10 +122,10 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="stat"><p class="lbl">Occupées</p><p class="val" id="statOcc">-<small>/0</small></p></div>
 <div class="stat"><p class="lbl">Arrivées prévues</p><p class="val" id="statArr">-</p></div>
 </div>
-<div id="setupCard" class="hidden card-form" style="margin-bottom:18px;">
-<p style="font-weight:700;font-size:14px;margin:0 0 4px;">Configuration initiale</p>
-<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;">Aucune chambre trouvée. Indique le nombre de chambres de l'établissement pour les créer d'un coup.</p>
-<label>Nombre de chambres</label>
+<div id="setupCard" class="card-form" style="margin-bottom:18px;">
+<p style="font-weight:700;font-size:14px;margin:0 0 4px;">Ajouter des chambres</p>
+<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;">Indique combien de chambres ajouter. Elles seront créées à la suite des chambres existantes.</p>
+<label>Nombre de chambres à ajouter</label>
 <input type="number" id="setupCount" placeholder="Ex. 12" min="1" max="300">
 <button class="btn-primary" id="setupBtn" onclick="generateRooms()">Générer les chambres</button>
 </div>
@@ -321,11 +321,12 @@ if(count < 1 || count > 300){ toast('Indique un nombre de chambres entre 1 et 30
 if(!currentEtabId){ toast('Établissement non identifié'); return; }
 btn.disabled = true; btn.textContent = 'Création en cours…';
 try{
+const startNum = roomsCache.length ? Math.max(...roomsCache.map(r=>r.numero||0)) + 1 : 1;
 const batch = writeBatch(db);
 const roomsRef = collection(db, 'etablissements', currentEtabId, 'chambres');
-for(let i=1; i<=count; i++){
+for(let i=0; i<count; i++){
 const newRoomRef = doc(roomsRef);
-batch.set(newRoomRef, { numero: i, statut: 'libre', client: null, departAujourdhui: false });
+batch.set(newRoomRef, { numero: startNum+i, statut: 'libre', client: null, departAujourdhui: false });
 }
 await batch.commit();
 countInput.value = '';
@@ -352,7 +353,6 @@ toast('Erreur de lecture des transactions : ' + err.message);
 }
 function renderAccueil(){
 document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
-document.getElementById('setupCard').classList.toggle('hidden', roomsCache.length > 0);
 const occ = roomsCache.filter(r=>r.statut==='occupee').length;
 document.getElementById('statOcc').innerHTML = occ + '<small>/'+roomsCache.length+'</small>';
 const departs = roomsCache.filter(r=>r.statut==='occupee' && r.departAujourdhui);
