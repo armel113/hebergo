@@ -401,16 +401,20 @@ const list = document.getElementById('departList');
 if(departs.length===0){
 list.innerHTML = '<div class="empty">Aucun départ prévu aujourd\'hui</div>';
 } else {
-list.innerHTML = departs.map(d=>`
+list.innerHTML = departs.map(d=>{
+const hasNum = typeof d.numero === 'number' && !isNaN(d.numero);
+const label = hasNum ? d.numero : ('#'+d.id.slice(0,5));
+return `
 <div class="depart-item">
-<div class="num">${d.numero}</div>
+<div class="num">${label}</div>
 <div class="info">
-<p class="name">Chambre ${d.numero} · ${d.client || ''}</p>
+<p class="name">Chambre ${label} · ${d.client || ''}</p>
 <p class="meta">Départ aujourd'hui</p>
 </div>
-<button class="btn-mini" onclick="markDeparted('${d.id}', ${d.numero})">Départ fait</button>
+<button class="btn-mini" onclick="markDeparted('${d.id}', ${hasNum ? d.numero : "'"+label+"'"})">Départ fait</button>
 </div>
-`).join('');
+`;
+}).join('');
 }
 }
 window.markDeparted = async function(roomId, num){
