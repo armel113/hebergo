@@ -126,6 +126,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <input type="password" id="authPassword" placeholder="••••••••">
 <p id="authError"></p>
 <button class="btn-primary" id="authSubmitBtn" onclick="handleLogin()">Se connecter</button>
+<button class="btn-ghost" onclick="handleForgotPassword()">Mot de passe oublié ?</button>
 </div>
 </div>
 <!-- APP PRINCIPALE (visible après connexion) -->
@@ -312,7 +313,7 @@ appId: "1:287969264830:web:a27ebcbb64704ebb048aef"
 };
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword
+getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
 getFirestore, collection, collectionGroup, doc, getDoc, getDocs,
@@ -353,6 +354,22 @@ btn.disabled = false; btn.textContent = 'Se connecter';
 }
 };
 window.handleLogout = function(){ signOut(auth); };
+window.handleForgotPassword = async function(){
+const email = document.getElementById('authEmail').value.trim();
+const errEl = document.getElementById('authError');
+errEl.style.display = 'none';
+if(!email){ errEl.textContent = 'Renseigne d\'abord ton email ci-dessus, puis touche "Mot de passe oublié"'; errEl.style.display='block'; return; }
+try{
+await sendPasswordResetEmail(auth, email);
+errEl.style.color = 'var(--teal-deep)';
+errEl.textContent = 'Un email de réinitialisation a été envoyé à '+email;
+errEl.style.display = 'block';
+}catch(e){
+errEl.style.color = 'var(--coral)';
+errEl.textContent = 'Impossible d\'envoyer l\'email (vérifie l\'adresse).';
+errEl.style.display = 'block';
+}
+};
 onAuthStateChanged(auth, async (user) => {
 currentUser = user;
 if(user){
@@ -432,6 +449,9 @@ return;
 el.innerHTML = membres.map(d=>{
 const data = d.data();
 const roleLbl = data.role==='admin' ? 'Admin' : 'Gérant';
+const retirerBtn = data.role==='gerant'
+? `<button class="btn-mini" onclick="retirerGerant('${d.id}')">Retirer l'accès</button>`
+: '';
 return `
 <div class="tx-item">
 <div class="num">${roleLbl.slice(0,1)}</div>
@@ -439,6 +459,7 @@ return `
 <p class="name">${data.email || d.id}</p>
 <p class="meta">${roleLbl}</p>
 </div>
+${retirerBtn}
 </div>
 `;
 }).join('');
@@ -446,6 +467,17 @@ return `
 toast('Erreur de chargement de l\'équipe : ' + err.message);
 }
 }
+window.retirerGerant = async function(uid){
+if(!currentEtabId) return;
+try{
+await deleteDoc(doc(db, 'etablissements', currentEtabId, 'membres', uid));
+await deleteDoc(doc(db, 'utilisateurs', uid));
+toast('Accès retiré. Son compte de connexion reste à supprimer dans Firebase Authentication si besoin.');
+await chargerEquipe();
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+};
 window.creerGerant = async function(){
 const email = document.getElementById('teamEmail').value.trim();
 const password = document.getElementById('teamPassword').value;
