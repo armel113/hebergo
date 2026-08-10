@@ -122,13 +122,6 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="stat"><p class="lbl">Occupées</p><p class="val" id="statOcc">-<small>/0</small></p></div>
 <div class="stat"><p class="lbl">Arrivées prévues</p><p class="val" id="statArr">-</p></div>
 </div>
-<div id="setupCard" class="card-form" style="margin-bottom:18px;">
-<p style="font-weight:700;font-size:14px;margin:0 0 4px;">Ajouter des chambres</p>
-<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 14px;">Indique combien de chambres ajouter. Elles seront créées à la suite des chambres existantes.</p>
-<label>Nombre de chambres à ajouter</label>
-<input type="number" id="setupCount" placeholder="Ex. 12" min="1" max="300">
-<button class="btn-primary" id="setupBtn" onclick="generateRooms()">Générer les chambres</button>
-</div>
 <p class="section-lbl">Départs aujourd'hui</p>
 <div id="departList"><div class="empty">Chargement…</div></div>
 <p class="section-lbl">Encaissé aujourd'hui</p>
@@ -224,7 +217,7 @@ getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
 import {
 getFirestore, collection, collectionGroup, doc, getDoc, getDocs,
 query, where, onSnapshot, updateDoc, addDoc, deleteDoc, serverTimestamp,
-Timestamp, writeBatch
+Timestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -303,7 +296,7 @@ function listenRooms(){
 if(!currentEtabId) return;
 const roomsRef = collection(db, 'etablissements', currentEtabId, 'chambres');
 unsubRooms = onSnapshot(roomsRef, (snap)=>{
-roomsCache = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>a.numero-b.numero);
+roomsCache = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.numero||0)-(b.numero||0));
 renderAccueil();
 renderRooms();
 renderCheckinOptions();
@@ -312,32 +305,6 @@ renderPayOptions();
 toast('Erreur de lecture des chambres : ' + err.message);
 });
 }
-
-window.generateRooms = async function(){
-const countInput = document.getElementById('setupCount');
-const btn = document.getElementById('setupBtn');
-let count = parseInt(countInput.value) || 0;
-if(count < 1 || count > 300){ toast('Indique un nombre de chambres entre 1 et 300'); return; }
-if(!currentEtabId){ toast('Établissement non identifié'); return; }
-btn.disabled = true; btn.textContent = 'Création en cours…';
-try{
-const startNum = roomsCache.length ? Math.max(...roomsCache.map(r=>r.numero||0)) + 1 : 1;
-const batch = writeBatch(db);
-const roomsRef = collection(db, 'etablissements', currentEtabId, 'chambres');
-for(let i=0; i<count; i++){
-const newRoomRef = doc(roomsRef);
-batch.set(newRoomRef, { numero: startNum+i, statut: 'libre', client: null, departAujourdhui: false });
-}
-await batch.commit();
-countInput.value = '';
-toast(count+' chambres créées');
-}catch(err){
-toast('Erreur : ' + err.message);
-}finally{
-btn.disabled = false; btn.textContent = 'Générer les chambres';
-}
-};
-
 function listenTransactionsToday(){
 if(!currentEtabId) return;
 const start = new Date(); start.setHours(0,0,0,0);
@@ -381,9 +348,11 @@ toast('Départ enregistré, chambre '+num+' à nettoyer');
 };
 function renderRooms(){
 const grid = document.getElementById('roomGrid');
-grid.innerHTML = roomsCache.map(r=>`
-<button class="room ${r.statut}" onclick="openRoomModal('${r.id}', ${r.numero})">${r.numero}</button>
-`).join('');
+grid.innerHTML = roomsCache.map(r=>{
+const hasNum = typeof r.numero === 'number' && !isNaN(r.numero);
+const label = hasNum ? r.numero : ('#'+r.id.slice(0,5));
+return `<button class="room ${r.statut}" title="ID: ${r.id}" onclick="openRoomModal('${r.id}', ${hasNum ? r.numero : "'"+label+"'"})">${label}</button>`;
+}).join('');
 }
 let activeRoomModalId = null, activeRoomModalNum = null;
 window.openRoomModal = function(id, num){
