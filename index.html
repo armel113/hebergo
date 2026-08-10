@@ -63,6 +63,9 @@ p.page-sub{font-size:13px;color:var(--ink-soft);margin:0 0 18px;}
 .res-item .name{font-size:13px;font-weight:600;}
 .res-item .meta{font-size:11.5px;color:var(--ink-soft);}
 .res-item .btn-mini{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:11px;padding:6px 10px;font-weight:600;color:var(--teal-deep);flex-shrink:0;}
+.paid-info{font-size:12.5px;color:var(--coral);background:var(--coral-tint);border-radius:var(--radius-sm);padding:8px 12px;margin:-6px 0 14px;font-weight:600;}
+.checkbox-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);font-weight:600;margin:2px 0 14px;}
+.checkbox-row input{width:16px;height:16px;}
 .room-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;}
 .room{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:15px;border:none;cursor:pointer;color:var(--teal-deep);gap:2px;}
 .room.libre{background:var(--teal-tint);color:var(--teal-deep);}
@@ -189,6 +192,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="card-form">
 <label>Chambre / client</label>
 <select class="field" id="payRoom"></select>
+<div id="paidInfo" class="paid-info hidden"></div>
 <label>Montant (FCFA)</label>
 <input type="number" id="payAmount" placeholder="15000" min="0" max="5000000" maxlength="9">
 <label>Mode de paiement</label>
@@ -196,6 +200,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="pill sel" data-mode="Espèces">Espèces</div>
 <div class="pill" data-mode="Mobile money">Mobile money (QR)</div>
 </div>
+<label class="checkbox-row hidden" id="payExtendRow"><input type="checkbox" id="payExtend"> Prolongation de séjour (nouveau paiement pour cette chambre)</label>
 <div class="amount-display"><p class="n" id="payPreview">0 FCFA</p></div>
 <button class="btn-primary" onclick="doPayment()">Confirmer le paiement</button>
 </div>
@@ -353,11 +358,32 @@ const startTs = Timestamp.fromDate(start);
 const txRef = collection(db, 'etablissements', currentEtabId, 'transactions');
 const q = query(txRef, where('date', '>=', startTs));
 unsubTx = onSnapshot(q, (snap)=>{
-cashToday = snap.docs.reduce((sum, d)=> sum + (d.data().montant || 0), 0);
+txTodayCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
+cashToday = txTodayCache.reduce((sum, t)=> sum + (t.montant || 0), 0);
 document.getElementById('statCash').innerHTML = cashToday.toLocaleString('fr-FR') + ' <small>FCFA</small>';
+updatePaidInfo();
 }, (err)=>{
 toast('Erreur de lecture des transactions : ' + err.message);
 });
+}
+let txTodayCache = [];
+function updatePaidInfo(){
+const sel = document.getElementById('payRoom');
+const info = document.getElementById('paidInfo');
+const extendRow = document.getElementById('payExtendRow');
+const extendBox = document.getElementById('payExtend');
+if(!sel || !info || !extendRow || !extendBox) return;
+if(!sel.value){ info.classList.add('hidden'); extendRow.classList.add('hidden'); return; }
+const paidToday = txTodayCache.filter(t=>t.chambreId===sel.value).reduce((s,t)=>s+(t.montant||0),0);
+if(paidToday>0){
+info.textContent = 'Déjà encaissé aujourd\'hui pour cette chambre : ' + paidToday.toLocaleString('fr-FR') + ' FCFA';
+info.classList.remove('hidden');
+extendRow.classList.remove('hidden');
+} else {
+info.classList.add('hidden');
+extendRow.classList.add('hidden');
+extendBox.checked = false;
+}
 }
 let unsubTxHistory = null;
 function listenTransactionHistory(){
@@ -379,11 +405,12 @@ return;
 }
 el.innerHTML = list.map(t=>{
 const heure = t.date && t.date.toDate ? t.date.toDate().toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
+const clientLbl = t.client ? ' · '+t.client : '';
 return `
 <div class="tx-item">
 <div class="num">${t.numeroChambre ?? '?'}</div>
 <div class="info">
-<p class="name">Chambre ${t.numeroChambre ?? '?'}</p>
+<p class="name">Chambre ${t.numeroChambre ?? '?'}${clientLbl}</p>
 <p class="meta">${t.mode || ''}${heure ? ' · ' + heure : ''}</p>
 </div>
 <div class="amt">${(t.montant||0).toLocaleString('fr-FR')} FCFA</div>
@@ -395,8 +422,13 @@ function renderAccueil(){
 document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
 const occ = roomsCache.filter(r=>r.statut==='occupee').length;
 document.getElementById('statOcc').innerHTML = occ + '<small>/'+roomsCache.length+'</small>';
+const todayStr = new Date().toDateString();
+const arrivals = reservationsCache.filter(r=>{
+const d = r.dateArrivee && r.dateArrivee.toDate ? r.dateArrivee.toDate() : null;
+return d && d.toDateString()===todayStr;
+});
+document.getElementById('statArr').textContent = arrivals.length;
 const departs = roomsCache.filter(r=>r.statut==='occupee' && r.departAujourdhui);
-document.getElementById('statArr').textContent = departs.length;
 const list = document.getElementById('departList');
 if(departs.length===0){
 list.innerHTML = '<div class="empty">Aucun départ prévu aujourd\'hui</div>';
@@ -481,12 +513,15 @@ document.getElementById('ciNights').value=1;
 toast(name+' installé(e)');
 };
 let unsubReservations = null;
+let reservationsCache = [];
 function listenReservations(){
 if(!currentEtabId) return;
 const resRef = collection(db, 'etablissements', currentEtabId, 'reservations');
 const q = query(resRef, where('statut', '==', 'en_attente'), orderBy('dateArrivee', 'asc'));
 unsubReservations = onSnapshot(q, (snap)=>{
-renderReservationList(snap.docs.map(d=>({id:d.id, ...d.data()})));
+reservationsCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
+renderReservationList(reservationsCache);
+renderAccueil();
 }, (err)=>{
 toast('Erreur de lecture des réservations : ' + err.message);
 });
@@ -550,9 +585,11 @@ function renderPayOptions(){
 const sel = document.getElementById('payRoom');
 const occ = roomsCache.filter(r=>r.statut==='occupee');
 sel.innerHTML = occ.length
-? occ.map(r=>`<option value="${r.id}" data-num="${r.numero}">Chambre ${r.numero} · ${r.client||''}</option>`).join('')
+? occ.map(r=>`<option value="${r.id}" data-num="${r.numero}" data-client="${(r.client||'').replace(/"/g,'&quot;')}">Chambre ${r.numero} · ${r.client||''}</option>`).join('')
 : `<option value="">Aucun client en séjour</option>`;
+updatePaidInfo();
 }
+document.getElementById('payRoom').addEventListener('change', updatePaidInfo);
 document.querySelectorAll('#payMode .pill').forEach(p=>{
 p.addEventListener('click', ()=>{
 document.querySelectorAll('#payMode .pill').forEach(x=>x.classList.remove('sel'));
@@ -572,16 +609,23 @@ const roomSel = document.getElementById('payRoom');
 const mode = document.querySelector('#payMode .pill.sel').dataset.mode;
 if(amount<=0 || !roomSel.value){ toast('Chambre et montant requis'); return; }
 if(amount > MONTANT_MAX){ toast('Montant trop élevé (max '+MONTANT_MAX.toLocaleString('fr-FR')+' FCFA)'); return; }
+const extendBox = document.getElementById('payExtend');
+const paidToday = txTodayCache.filter(t=>t.chambreId===roomSel.value).reduce((s,t)=>s+(t.montant||0),0);
+if(paidToday>0 && !extendBox.checked){
+toast('Cette chambre a déjà un paiement aujourd\'hui. Coche "Prolongation de séjour" pour confirmer un nouveau paiement.');
+return;
+}
 await addDoc(collection(db, 'etablissements', currentEtabId, 'transactions'), {
 montant: amount, mode, chambreId: roomSel.value,
 numeroChambre: roomSel.selectedOptions[0].dataset.num,
+client: roomSel.selectedOptions[0].dataset.client || '',
 date: serverTimestamp()
 });
 document.getElementById('payAmount').value='';
 document.getElementById('payPreview').textContent='0 FCFA';
+extendBox.checked = false;
 toast('Paiement de '+amount.toLocaleString('fr-FR')+' FCFA confirmé');
 };
 </script>
 </body>
 </html>
-
