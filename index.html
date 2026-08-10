@@ -483,7 +483,7 @@ alertSection.classList.remove('hidden');
 alertList.innerHTML = alerts.map(a=>{
 const hasNum = typeof a.numero === 'number' && !isNaN(a.numero);
 const label = hasNum ? a.numero : ('#'+a.id.slice(0,5));
-const resolveBtn = currentUserRole==='admin'
+const resolveBtn = (currentUserRole==='admin' || currentUserRole==='super_admin')
 ? `<button class="btn-mini" onclick="resoudreAlerte('${a.id}')">Résolu</button>`
 : '';
 return `
@@ -528,7 +528,7 @@ return `
 }
 }
 window.resoudreAlerte = async function(roomId){
-if(currentUserRole!=='admin'){ toast('Seul le propriétaire du compte peut résoudre cette alerte.'); return; }
+if(currentUserRole!=='admin' && currentUserRole!=='super_admin'){ toast('Seul le propriétaire du compte peut résoudre cette alerte.'); return; }
 await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), {
 alerteSansPaiement: false, alerteClient: null, alerteDate: null
 });
@@ -818,6 +818,7 @@ if(!uid || uid.length < 10){ toast('UID invalide'); return; }
 if(!etabId){ toast('Choisis un établissement'); return; }
 try{
 await setDoc(doc(db, 'utilisateurs', uid), { etablissementId: etabId, role: role });
+await setDoc(doc(db, 'etablissements', etabId, 'membres', uid), { role: role });
 toast('Compte rattaché avec le rôle "'+role+'"');
 document.getElementById('linkUid').value='';
 }catch(err){
