@@ -63,6 +63,12 @@ p.page-sub{font-size:13px;color:var(--ink-soft);margin:0 0 18px;}
 .res-item .name{font-size:13px;font-weight:600;}
 .res-item .meta{font-size:11.5px;color:var(--ink-soft);}
 .res-item .btn-mini{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:11px;padding:6px 10px;font-weight:600;color:var(--teal-deep);flex-shrink:0;}
+.alert-item{display:flex;align-items:center;gap:12px;background:var(--coral-tint);border:1px solid var(--coral);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;}
+.alert-item .num{width:36px;height:36px;border-radius:10px;background:#fff;color:var(--coral);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;}
+.alert-item .info p{margin:0;}
+.alert-item .name{font-size:13px;font-weight:600;color:var(--coral);}
+.alert-item .meta{font-size:11.5px;color:var(--ink-soft);}
+.alert-item .btn-mini{margin-left:auto;border:1px solid var(--coral);background:#fff;border-radius:8px;font-size:11px;padding:6px 10px;font-weight:600;color:var(--coral);flex-shrink:0;}
 .paid-info{font-size:12.5px;color:var(--coral);background:var(--coral-tint);border-radius:var(--radius-sm);padding:8px 12px;margin:-6px 0 14px;font-weight:600;}
 .checkbox-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);font-weight:600;margin:2px 0 14px;}
 .checkbox-row input{width:16px;height:16px;}
@@ -135,6 +141,10 @@ nav.tabbar svg{width:20px;height:20px;}
 <section class="screen active" id="screen-accueil">
 <h1 class="page-title">Aujourd'hui</h1>
 <p class="page-sub" id="todayDate"></p>
+<div id="alertSection" class="hidden">
+<p class="section-lbl">Alertes</p>
+<div id="alertList"></div>
+</div>
 <div class="stat-row">
 <div class="stat"><p class="lbl">Occupées</p><p class="val" id="statOcc">-<small>/0</small></p></div>
 <div class="stat"><p class="lbl">Arrivées prévues</p><p class="val" id="statArr">-</p></div>
@@ -265,6 +275,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 let currentUser = null;
+let currentUserRole = null;
 let currentEtabId = null;
 let unsubRooms = null;
 let unsubTx = null;
@@ -317,6 +328,7 @@ toast('Ton compte n\'est rattaché à aucun établissement.');
 return;
 }
 currentEtabId = userSnap.data().etablissementId;
+currentUserRole = userSnap.data().role || null;
 const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
 document.getElementById('estabName').textContent = etabSnap.exists() ? etabSnap.data().nom : currentEtabId;
 listenRooms();
@@ -420,6 +432,31 @@ return `
 }
 function renderAccueil(){
 document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+const alerts = roomsCache.filter(r=>r.alerteSansPaiement===true);
+const alertSection = document.getElementById('alertSection');
+const alertList = document.getElementById('alertList');
+if(alerts.length===0){
+alertSection.classList.add('hidden');
+} else {
+alertSection.classList.remove('hidden');
+alertList.innerHTML = alerts.map(a=>{
+const hasNum = typeof a.numero === 'number' && !isNaN(a.numero);
+const label = hasNum ? a.numero : ('#'+a.id.slice(0,5));
+const resolveBtn = currentUserRole==='admin'
+? `<button class="btn-mini" onclick="resoudreAlerte('${a.id}')">Résolu</button>`
+: '';
+return `
+<div class="alert-item">
+<div class="num">${label}</div>
+<div class="info">
+<p class="name">Chambre ${label} · ${a.alerteClient || ''}</p>
+<p class="meta">Départ sans paiement enregistré</p>
+</div>
+${resolveBtn}
+</div>
+`;
+}).join('');
+}
 const occ = roomsCache.filter(r=>r.statut==='occupee').length;
 document.getElementById('statOcc').innerHTML = occ + '<small>/'+roomsCache.length+'</small>';
 const todayStr = new Date().toDateString();
@@ -449,10 +486,34 @@ return `
 }).join('');
 }
 }
-window.markDeparted = async function(roomId, num){
+window.resoudreAlerte = async function(roomId){
+if(currentUserRole!=='admin'){ toast('Seul le propriétaire du compte peut résoudre cette alerte.'); return; }
 await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), {
-statut: 'nettoyage', client: null, departAujourdhui: false
+alerteSansPaiement: false, alerteClient: null, alerteDate: null
 });
+toast('Alerte résolue');
+};
+window.markDeparted = async function(roomId, num){
+const room = roomsCache.find(r=>r.id===roomId);
+const updates = { statut: 'nettoyage', client: null, departAujourdhui: false, dernierStatutPar: currentUser ? currentUser.email : '' };
+let hasPaiement = false;
+try{
+const txRef = collection(db, 'etablissements', currentEtabId, 'transactions');
+const txQ = query(txRef, where('chambreId','==',roomId));
+const txSnap = await getDocs(txQ);
+const checkinMs = room && room.dateCheckin && room.dateCheckin.toMillis ? room.dateCheckin.toMillis() : 0;
+hasPaiement = txSnap.docs.some(d=>{
+const t = d.data();
+const tDate = t.date && t.date.toMillis ? t.date.toMillis() : 0;
+return tDate >= checkinMs;
+});
+}catch(err){ hasPaiement = true; }
+if(!hasPaiement){
+updates.alerteSansPaiement = true;
+updates.alerteClient = room ? (room.client || '') : '';
+updates.alerteDate = serverTimestamp();
+}
+await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), updates);
 toast('Départ enregistré, chambre '+num+' à nettoyer');
 };
 function renderRooms(){
@@ -473,8 +534,30 @@ window.closeModal = function(){ document.getElementById('roomModal').classList.r
 document.querySelectorAll('.status-opt').forEach(opt=>{
 opt.addEventListener('click', async ()=>{
 const s = opt.dataset.s;
-const updates = { statut: s };
-if(s!=='occupee') updates.client = null;
+const room = roomsCache.find(r=>r.id===activeRoomModalId);
+const updates = { statut: s, dernierStatutPar: currentUser ? currentUser.email : '' };
+if(s!=='occupee'){
+updates.client = null;
+if(room && room.statut==='occupee'){
+let hasPaiement = false;
+try{
+const txRef = collection(db, 'etablissements', currentEtabId, 'transactions');
+const txQ = query(txRef, where('chambreId','==',activeRoomModalId));
+const txSnap = await getDocs(txQ);
+const checkinMs = room.dateCheckin && room.dateCheckin.toMillis ? room.dateCheckin.toMillis() : 0;
+hasPaiement = txSnap.docs.some(d=>{
+const t = d.data();
+const tDate = t.date && t.date.toMillis ? t.date.toMillis() : 0;
+return tDate >= checkinMs;
+});
+}catch(err){ hasPaiement = true; }
+if(!hasPaiement){
+updates.alerteSansPaiement = true;
+updates.alerteClient = room.client || '';
+updates.alerteDate = serverTimestamp();
+}
+}
+}
 await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', activeRoomModalId), updates);
 closeModal();
 toast('Chambre '+activeRoomModalNum+' mise à jour');
@@ -502,7 +585,9 @@ if(nights > 90) nights = 90;
 if(!name || name.length < 2 || !roomId){ toast('Nom (2 caractères min) et chambre requis'); return; }
 if(phone && phoneDigits.length !== 10){ toast('Téléphone : 10 chiffres attendus (ex. 0700000000)'); return; }
 await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), {
-statut: 'occupee', client: name, departAujourdhui: nights<=1
+statut: 'occupee', client: name, departAujourdhui: nights<=1,
+dateCheckin: serverTimestamp(), dernierStatutPar: currentUser ? currentUser.email : '',
+alerteSansPaiement: false, alerteClient: null, alerteDate: null
 });
 await addDoc(collection(db, 'etablissements', currentEtabId, 'clients'), {
 nom: name, telephone: phoneDigits, nuits: nights, dateArrivee: serverTimestamp()
