@@ -18,7 +18,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;background:#d9d3c1;font-family:'Manrope',sans-serif;color:var(--ink);}
 body{display:flex;justify-content:center;min-height:100vh;}
-#app{width:100%;max-width:430px;min-height:100vh;background:var(--paper);display:flex;flex-direction:column;position:relative;box-shadow:0 0 40px rgba(0,0,0,.15);}
+#app{width:100%;max-width:430px;height:100vh;height:100dvh;background:var(--paper);display:flex;flex-direction:column;position:relative;box-shadow:0 0 40px rgba(0,0,0,.15);overflow:hidden;}
 #authScreen{flex:1;display:flex;flex-direction:column;justify-content:center;padding:32px 26px;}
 #authScreen .mark{width:52px;height:52px;border-radius:16px;background:var(--teal);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin-bottom:18px;}
 #authScreen h1{font-family:'Fraunces',serif;font-size:26px;margin:0 0 4px;}
@@ -49,6 +49,13 @@ p.page-sub{font-size:13px;color:var(--ink-soft);margin:0 0 18px;}
 .depart-item .meta{font-size:11.5px;color:var(--ink-soft);}
 .depart-item .btn-mini{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:11px;padding:6px 10px;font-weight:600;color:var(--teal-deep);}
 .empty{text-align:center;padding:26px 10px;color:var(--ink-faint);font-size:13px;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius-md);}
+.tx-item{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;}
+.tx-item .num{width:36px;height:36px;border-radius:10px;background:var(--teal-tint);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;}
+.tx-item .info{flex:1;min-width:0;}
+.tx-item .info p{margin:0;}
+.tx-item .name{font-size:13px;font-weight:600;}
+.tx-item .meta{font-size:11.5px;color:var(--ink-soft);}
+.tx-item .amt{font-weight:700;font-size:14px;color:var(--teal-deep);white-space:nowrap;}
 .room-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;}
 .room{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:15px;border:none;cursor:pointer;color:var(--teal-deep);gap:2px;}
 .room.libre{background:var(--teal-tint);color:var(--teal-deep);}
@@ -168,6 +175,8 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="amount-display"><p class="n" id="payPreview">0 FCFA</p></div>
 <button class="btn-primary" onclick="doPayment()">Confirmer le paiement</button>
 </div>
+<p class="section-lbl">Derniers paiements</p>
+<div id="txHistory"></div>
 </section>
 </main>
 <div class="modal-wrap" id="roomModal">
@@ -217,7 +226,7 @@ getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
 import {
 getFirestore, collection, collectionGroup, doc, getDoc, getDocs,
 query, where, onSnapshot, updateDoc, addDoc, deleteDoc, serverTimestamp,
-Timestamp
+Timestamp, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -263,6 +272,7 @@ document.getElementById('authScreen').style.display = 'flex';
 document.getElementById('mainApp').style.display = 'none';
 if(unsubRooms) unsubRooms();
 if(unsubTx) unsubTx();
+if(unsubTxHistory) unsubTxHistory();
 }
 });
 async function resolveEstablishment(uid){
@@ -277,6 +287,7 @@ const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
 document.getElementById('estabName').textContent = etabSnap.exists() ? etabSnap.data().nom : currentEtabId;
 listenRooms();
 listenTransactionsToday();
+listenTransactionHistory();
 }catch(err){
 toast('Erreur : ' + err.message);
 }
@@ -317,6 +328,38 @@ document.getElementById('statCash').innerHTML = cashToday.toLocaleString('fr-FR'
 }, (err)=>{
 toast('Erreur de lecture des transactions : ' + err.message);
 });
+}
+let unsubTxHistory = null;
+function listenTransactionHistory(){
+if(!currentEtabId) return;
+const txRef = collection(db, 'etablissements', currentEtabId, 'transactions');
+const q = query(txRef, orderBy('date', 'desc'), limit(20));
+unsubTxHistory = onSnapshot(q, (snap)=>{
+renderTxHistory(snap.docs.map(d=>({id:d.id, ...d.data()})));
+}, (err)=>{
+toast('Erreur de lecture de l\'historique : ' + err.message);
+});
+}
+function renderTxHistory(list){
+const el = document.getElementById('txHistory');
+if(!el) return;
+if(list.length===0){
+el.innerHTML = '<div class="empty">Aucun paiement enregistré</div>';
+return;
+}
+el.innerHTML = list.map(t=>{
+const heure = t.date && t.date.toDate ? t.date.toDate().toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
+return `
+<div class="tx-item">
+<div class="num">${t.numeroChambre ?? '?'}</div>
+<div class="info">
+<p class="name">Chambre ${t.numeroChambre ?? '?'}</p>
+<p class="meta">${t.mode || ''}${heure ? ' · ' + heure : ''}</p>
+</div>
+<div class="amt">${(t.montant||0).toLocaleString('fr-FR')} FCFA</div>
+</div>
+`;
+}).join('');
 }
 function renderAccueil(){
 document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
