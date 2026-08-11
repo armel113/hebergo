@@ -85,6 +85,11 @@ p.page-sub{font-size:14.5px;color:var(--ink-soft);margin:0 0 18px;}
 .legend i{width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:middle;}
 .card-form{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;}
 #authScreen .card-form{box-shadow:0 20px 45px rgba(0,0,0,.25);border:none;}
+.about-link{text-align:center;font-size:13px;color:rgba(255,255,255,.75);font-weight:600;margin-top:22px;cursor:pointer;text-decoration:underline;}
+.about-panel{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:var(--radius-md);padding:16px;margin-top:14px;color:#fff;}
+.about-panel p{font-size:13px;line-height:1.5;margin:0 0 10px;color:rgba(255,255,255,.9);}
+.about-panel p:last-child{margin-bottom:0;}
+.about-panel a{color:#fff;font-weight:700;text-decoration:none;}
 label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin:14px 0 6px;}
 label:first-child{margin-top:0;}
 input[type=text],input[type=tel],input[type=number],input[type=email],input[type=password],select.field{
@@ -132,6 +137,12 @@ nav.tabbar svg{width:20px;height:20px;}
 <p id="authError"></p>
 <button class="btn-primary" id="authSubmitBtn" onclick="handleLogin()">Se connecter</button>
 <button class="btn-ghost" onclick="handleForgotPassword()">Mot de passe oublié ?</button>
+</div>
+<p class="about-link" onclick="document.getElementById('aboutPanel').classList.toggle('hidden')">À propos d'Hébergo</p>
+<div id="aboutPanel" class="about-panel hidden">
+<p>Hébergo est un logiciel simple de gestion hôtelière : réservations, check-in, encaissement et suivi des chambres en temps réel, pensé pour les petits et moyens établissements.</p>
+<p>Pour équiper votre hôtel, contactez-nous :</p>
+<p><a href="tel:+2250708480359">+225 07 08 48 03 59</a><br><a href="tel:+2250716300000">+225 07 16 30 00 00</a></p>
 </div>
 </div>
 <!-- APP PRINCIPALE (visible après connexion) -->
