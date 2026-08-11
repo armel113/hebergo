@@ -176,6 +176,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <div id="departList"><div class="empty">Chargement…</div></div>
 <p class="section-lbl">Encaissé aujourd'hui</p>
 <div class="stat" style="margin-bottom:0;"><p class="lbl">Total</p><p class="val" id="statCash">0 <small>FCFA</small></p></div>
+<button class="btn-ghost" style="margin-top:16px;" onclick="openClients()">Historique des clients</button>
 </section>
 <section class="screen" id="screen-chambres">
 <h1 class="page-title">Chambres</h1>
@@ -304,6 +305,13 @@ nav.tabbar svg{width:20px;height:20px;}
 <p class="section-lbl">Export des données</p>
 <button class="btn-ghost" onclick="exporterPaiementsCSV()">Exporter les paiements du mois (CSV)</button>
 <button class="btn-ghost" onclick="exporterClientsCSV()">Exporter tous les clients (CSV)</button>
+</section>
+<section class="screen" id="screen-clients">
+<p class="page-sub" style="cursor:pointer;margin-bottom:10px;" onclick="document.querySelector('.tab-btn[data-screen=accueil]').click()">← Retour</p>
+<h1 class="page-title">Historique des clients</h1>
+<p class="page-sub">Retrouve un client déjà passé (nom ou téléphone)</p>
+<input type="text" id="clientsSearch" placeholder="Rechercher un nom ou un numéro…" oninput="filtrerClients()">
+<div id="clientsList" style="margin-top:14px;"><div class="empty">Chargement…</div></div>
 </section>
 </main>
 <div class="modal-wrap" id="roomModal">
@@ -598,6 +606,57 @@ telechargerCSV('clients-'+new Date().toISOString().slice(0,10)+'.csv', lignes);
 }catch(err){
 toast('Erreur lors de l\'export : ' + err.message);
 }
+};
+// --- Historique des clients (recherche) ---
+let clientsCache = [];
+window.openClients = async function(){
+document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+document.getElementById('screen-clients').classList.add('active');
+document.getElementById('clientsSearch').value = '';
+await chargerClients();
+};
+async function chargerClients(){
+const el = document.getElementById('clientsList');
+if(!el || !currentEtabId) return;
+el.innerHTML = '<div class="empty">Chargement…</div>';
+try{
+const q = query(collection(db, 'etablissements', currentEtabId, 'clients'), orderBy('dateArrivee', 'desc'), limit(200));
+const snap = await getDocs(q);
+clientsCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
+renderClientsList(clientsCache);
+}catch(err){
+el.innerHTML = '<div class="empty">Erreur de chargement</div>';
+toast('Erreur : ' + err.message);
+}
+}
+function renderClientsList(list){
+const el = document.getElementById('clientsList');
+if(!el) return;
+if(list.length===0){
+el.innerHTML = '<div class="empty">Aucun client trouvé</div>';
+return;
+}
+el.innerHTML = list.map(c=>{
+const dateStr = c.dateArrivee && c.dateArrivee.toDate ? c.dateArrivee.toDate().toLocaleDateString('fr-FR') : '';
+return `
+<div class="tx-item">
+<div class="num">${escapeHtml((c.nom||'?').slice(0,1).toUpperCase())}</div>
+<div class="info">
+<p class="name">${escapeHtml(c.nom||'')}</p>
+<p class="meta">${escapeHtml(c.telephone||'')}${dateStr ? ' · '+dateStr : ''}${c.nuits ? ' · '+c.nuits+' nuit'+(c.nuits>1?'s':'') : ''}</p>
+</div>
+</div>
+`;
+}).join('');
+}
+window.filtrerClients = function(){
+const terme = document.getElementById('clientsSearch').value.trim().toLowerCase();
+if(!terme){ renderClientsList(clientsCache); return; }
+const filtres = clientsCache.filter(c=>
+(c.nom||'').toLowerCase().includes(terme) || (c.telephone||'').includes(terme)
+);
+renderClientsList(filtres);
 };
 async function chargerEquipe(){
 const el = document.getElementById('teamList');
