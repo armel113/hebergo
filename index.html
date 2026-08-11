@@ -252,6 +252,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <button class="btn-primary" onclick="rattacherCompte()">Créer le compte</button>
 </div>
 <p class="section-lbl">Établissements clients</p>
+<div id="etabStats" class="stat-row"></div>
 <div id="etabList"><div class="empty">Chargement…</div></div>
 </section>
 <section class="screen" id="screen-equipe">
@@ -930,6 +931,15 @@ const etabs = snap.docs.map(d=>({id:d.id, nom: d.data().nom || d.id, actif: d.da
 sel.innerHTML = etabs.length
 ? etabs.map(e=>`<option value="${e.id}">${e.nom}</option>`).join('')
 : `<option value="">Aucun établissement</option>`;
+const statsEl = document.getElementById('etabStats');
+if(statsEl){
+const nbActifs = etabs.filter(e=>e.actif).length;
+const nbPause = etabs.length - nbActifs;
+statsEl.innerHTML = `
+<div class="stat"><p class="lbl">Actifs</p><p class="val">${nbActifs}</p></div>
+<div class="stat"><p class="lbl">En pause</p><p class="val">${nbPause}</p></div>
+`;
+}
 const listEl = document.getElementById('etabList');
 if(listEl){
 listEl.innerHTML = etabs.length ? etabs.map(e=>{
