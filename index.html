@@ -484,6 +484,7 @@ const mainApp = document.getElementById('mainApp');
 mainApp.classList.remove('hidden');
 mainApp.style.display = 'flex';
 await resolveEstablishment(user.uid);
+reinitialiserTimerInactivite();
 } else {
 document.getElementById('authScreen').style.display = 'flex';
 document.getElementById('mainApp').style.display = 'none';
@@ -491,7 +492,24 @@ if(unsubRooms) unsubRooms();
 if(unsubTx) unsubTx();
 if(unsubTxHistory) unsubTxHistory();
 if(unsubReservations) unsubReservations();
+if(timerInactivite) clearTimeout(timerInactivite);
 }
+});
+// Déconnexion automatique après un long moment sans activité, pour éviter
+// qu'une session reste ouverte sans surveillance sur un appareil partagé
+// (ex. tablette/PC commun à la réception).
+const DUREE_INACTIVITE_MS = 15 * 60 * 1000;
+let timerInactivite = null;
+function reinitialiserTimerInactivite(){
+if(!currentUser) return;
+if(timerInactivite) clearTimeout(timerInactivite);
+timerInactivite = setTimeout(()=>{
+toast('Déconnecté après 15 min d\'inactivité');
+signOut(auth);
+}, DUREE_INACTIVITE_MS);
+}
+['click', 'keydown', 'touchstart', 'scroll'].forEach(evt=>{
+document.addEventListener(evt, reinitialiserTimerInactivite, { passive: true });
 });
 async function resolveEstablishment(uid){
 try{
