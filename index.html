@@ -254,6 +254,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <button class="btn-primary" onclick="doPayment()">Confirmer le paiement</button>
 </div>
 <p class="section-lbl">Derniers paiements</p>
+<input type="text" id="txHistorySearch" placeholder="Rechercher par chambre ou client…" oninput="filtrerTxHistory()" style="margin-bottom:10px;">
 <div id="txHistory"></div>
 </section>
 <section class="screen" id="screen-adminplateforme">
@@ -846,16 +847,27 @@ extendBox.checked = false;
 }
 }
 let unsubTxHistory = null;
+let txHistoryCache = [];
 function listenTransactionHistory(){
 if(!currentEtabId) return;
 const txRef = collection(db, 'etablissements', currentEtabId, 'transactions');
-const q = query(txRef, orderBy('date', 'desc'), limit(20));
+const q = query(txRef, orderBy('date', 'desc'), limit(50));
 unsubTxHistory = onSnapshot(q, (snap)=>{
-renderTxHistory(snap.docs.map(d=>({id:d.id, ...d.data()})));
+txHistoryCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
+filtrerTxHistory();
 }, (err)=>{
 toast('Erreur de lecture de l\'historique : ' + err.message);
 });
 }
+window.filtrerTxHistory = function(){
+const searchEl = document.getElementById('txHistorySearch');
+const terme = searchEl ? searchEl.value.trim().toLowerCase() : '';
+if(!terme){ renderTxHistory(txHistoryCache); return; }
+const filtres = txHistoryCache.filter(t=>
+String(t.numeroChambre ?? '').toLowerCase().includes(terme) || (t.client||'').toLowerCase().includes(terme)
+);
+renderTxHistory(filtres);
+};
 function renderTxHistory(list){
 const el = document.getElementById('txHistory');
 if(!el) return;
