@@ -301,6 +301,9 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="stat"><p class="lbl">Paiements ce mois</p><p class="val" id="statsNbPaiementsMois">-</p></div>
 </div>
 <p class="page-sub" style="margin-top:18px;">Les revenus sont calculés à partir des paiements enregistrés dans Caisse.</p>
+<p class="section-lbl">Export des données</p>
+<button class="btn-ghost" onclick="exporterPaiementsCSV()">Exporter les paiements du mois (CSV)</button>
+<button class="btn-ghost" onclick="exporterClientsCSV()">Exporter tous les clients (CSV)</button>
 </section>
 </main>
 <div class="modal-wrap" id="roomModal">
@@ -524,6 +527,8 @@ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
 document.getElementById('screen-stats').classList.add('active');
 await chargerStats();
 };
+// --- Export CSV ---
+let paiementsMoisCache = [];
 async function chargerStats(){
 if(!currentEtabId) return;
 try{
@@ -548,10 +553,52 @@ document.getElementById('statsRevenuJour').innerHTML = total_(snapJour).toLocale
 document.getElementById('statsRevenuSemaine').innerHTML = total_(snapSemaine).toLocaleString('fr-FR') + '<small>FCFA</small>';
 document.getElementById('statsRevenuMois').innerHTML = total_(snapMois).toLocaleString('fr-FR') + '<small>FCFA</small>';
 document.getElementById('statsNbPaiementsMois').textContent = snapMois.size;
+paiementsMoisCache = snapMois.docs.map(d=>({id:d.id, ...d.data()}));
 }catch(err){
 toast('Erreur de chargement des statistiques : ' + err.message);
 }
 }
+// --- Export CSV ---
+function echapperCsv(valeur){
+const str = String(valeur ?? '');
+return /[",\n;]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+}
+function telechargerCSV(nomFichier, lignes){
+// Le \uFEFF (BOM) en tête permet à Excel d'afficher correctement les
+// accents français à l'ouverture du fichier.
+const contenu = '\uFEFF' + lignes.map(l => l.map(echapperCsv).join(';')).join('\r\n');
+const blob = new Blob([contenu], { type: 'text/csv;charset=utf-8;' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url; a.download = nomFichier;
+document.body.appendChild(a); a.click(); document.body.removeChild(a);
+URL.revokeObjectURL(url);
+}
+window.exporterPaiementsCSV = function(){
+if(paiementsMoisCache.length===0){ toast('Aucun paiement ce mois-ci à exporter'); return; }
+const lignes = [['Date', 'Chambre', 'Client', 'Mode de paiement', 'Montant (FCFA)']];
+paiementsMoisCache.forEach(t=>{
+const dateStr = t.date && t.date.toDate ? t.date.toDate().toLocaleString('fr-FR') : '';
+lignes.push([dateStr, t.numeroChambre ?? '', t.client || '', t.mode || '', t.montant || 0]);
+});
+telechargerCSV('paiements-'+new Date().toISOString().slice(0,7)+'.csv', lignes);
+};
+window.exporterClientsCSV = async function(){
+if(!currentEtabId) return;
+try{
+const snap = await getDocs(collection(db, 'etablissements', currentEtabId, 'clients'));
+if(snap.empty){ toast('Aucun client à exporter'); return; }
+const lignes = [['Nom', 'Téléphone', 'Nuits', 'Date d\'arrivée']];
+snap.docs.forEach(d=>{
+const c = d.data();
+const dateStr = c.dateArrivee && c.dateArrivee.toDate ? c.dateArrivee.toDate().toLocaleString('fr-FR') : '';
+lignes.push([c.nom || '', c.telephone || '', c.nuits ?? '', dateStr]);
+});
+telechargerCSV('clients-'+new Date().toISOString().slice(0,10)+'.csv', lignes);
+}catch(err){
+toast('Erreur lors de l\'export : ' + err.message);
+}
+};
 async function chargerEquipe(){
 const el = document.getElementById('teamList');
 if(!el || !currentEtabId) return;
