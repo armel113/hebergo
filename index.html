@@ -371,13 +371,17 @@ import {
 getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-getFirestore, collection, collectionGroup, doc, getDoc, getDocs,
+getFirestore, initializeFirestore, persistentLocalCache, collection, collectionGroup, doc, getDoc, getDocs,
 query, where, onSnapshot, updateDoc, addDoc, deleteDoc, setDoc, writeBatch, serverTimestamp,
 Timestamp, orderBy, limit
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+// persistentLocalCache garde une copie locale des données (chambres, clients,
+// paiements...) sur l'appareil : en cas de coupure réseau temporaire, l'app
+// continue d'afficher les dernières données connues au lieu d'un écran vide,
+// et resynchronise automatiquement au retour de la connexion.
+const db = initializeFirestore(app, { localCache: persistentLocalCache({}) });
 const secondaryApp = initializeApp(firebaseConfig, "Secondary");
 const secondaryAuth = getAuth(secondaryApp);
 let currentUser = null;
@@ -556,12 +560,13 @@ getDocs(query(txRef, where('date', '>=', Timestamp.fromDate(debutJour)))),
 getDocs(query(txRef, where('date', '>=', Timestamp.fromDate(debutSemaine)))),
 getDocs(query(txRef, where('date', '>=', Timestamp.fromDate(debutMois))))
 ]);
-const total_ = snap => snap.docs.reduce((s,d)=>s+(d.data().montant||0), 0);
+const total_ = snap => snap.docs.reduce((s,d)=> d.data().annule ? s : s+(d.data().montant||0), 0);
 document.getElementById('statsRevenuJour').innerHTML = total_(snapJour).toLocaleString('fr-FR') + '<small>FCFA</small>';
 document.getElementById('statsRevenuSemaine').innerHTML = total_(snapSemaine).toLocaleString('fr-FR') + '<small>FCFA</small>';
 document.getElementById('statsRevenuMois').innerHTML = total_(snapMois).toLocaleString('fr-FR') + '<small>FCFA</small>';
-document.getElementById('statsNbPaiementsMois').textContent = snapMois.size;
-paiementsMoisCache = snapMois.docs.map(d=>({id:d.id, ...d.data()}));
+const paiementsValides = snapMois.docs.filter(d=>!d.data().annule);
+document.getElementById('statsNbPaiementsMois').textContent = paiementsValides.length;
+paiementsMoisCache = paiementsValides.map(d=>({id:d.id, ...d.data()}));
 }catch(err){
 toast('Erreur de chargement des statistiques : ' + err.message);
 }
@@ -769,7 +774,7 @@ const startTs = Timestamp.fromDate(start);
 const txRef = collection(db, 'etablissements', currentEtabId, 'transactions');
 const q = query(txRef, where('date', '>=', startTs));
 unsubTx = onSnapshot(q, (snap)=>{
-txTodayCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
+txTodayCache = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(t=>!t.annule);
 cashToday = txTodayCache.reduce((sum, t)=> sum + (t.montant || 0), 0);
 document.getElementById('statCash').innerHTML = cashToday.toLocaleString('fr-FR') + ' <small>FCFA</small>';
 updatePaidInfo();
@@ -814,10 +819,26 @@ if(list.length===0){
 el.innerHTML = '<div class="empty">Aucun paiement enregistré</div>';
 return;
 }
+const peutAnnuler = currentUserRole==='admin' || currentUserRole==='super_admin';
 el.innerHTML = list.map(t=>{
 const heure = t.date && t.date.toDate ? t.date.toDate().toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
 const clientLbl = t.client ? ' · '+escapeHtml(t.client) : '';
 const dateIso = t.date && t.date.toDate ? t.date.toDate().toISOString() : new Date().toISOString();
+if(t.annule){
+return `
+<div class="tx-item" style="opacity:.5;">
+<div class="num">${t.numeroChambre ?? '?'}</div>
+<div class="info">
+<p class="name" style="text-decoration:line-through;">Chambre ${t.numeroChambre ?? '?'}${clientLbl}</p>
+<p class="meta">Annulé${t.raisonAnnulation ? ' · '+escapeHtml(t.raisonAnnulation) : ''}</p>
+</div>
+<div class="amt" style="text-decoration:line-through;">${(t.montant||0).toLocaleString('fr-FR')} FCFA</div>
+</div>
+`;
+}
+const annulerBtn = peutAnnuler
+? `<button class="btn-mini btn-annuler" style="margin-left:0;padding:4px 8px;font-size:10px;color:var(--coral);border-color:var(--coral);" data-id="${escapeHtml(t.id||'')}">Annuler</button>`
+: '';
 return `
 <div class="tx-item">
 <div class="num">${t.numeroChambre ?? '?'}</div>
@@ -827,7 +848,10 @@ return `
 </div>
 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
 <div class="amt">${(t.montant||0).toLocaleString('fr-FR')} FCFA</div>
+<div style="display:flex;gap:6px;">
 <button class="btn-mini btn-recu" style="margin-left:0;padding:4px 8px;font-size:10px;" data-montant="${t.montant||0}" data-mode="${escapeHtml(t.mode||'')}" data-chambre="${escapeHtml(String(t.numeroChambre??''))}" data-client="${escapeHtml(t.client||'')}" data-date="${dateIso}" data-ref="${escapeHtml(t.id||'')}">Reçu</button>
+${annulerBtn}
+</div>
 </div>
 </div>
 `;
@@ -843,7 +867,28 @@ montant: parseInt(btn.dataset.montant)||0,
 reference: btn.dataset.ref
 }));
 });
+el.querySelectorAll('.btn-annuler').forEach(btn=>{
+btn.addEventListener('click', ()=> annulerPaiement(btn.dataset.id));
+});
 }
+window.annulerPaiement = function(txId){
+if(!txId) return;
+const raison = window.prompt('Raison de l\'annulation (ex. erreur de montant, mauvaise chambre)…', '');
+if(raison === null) return; // l'utilisateur a cliqué "Annuler" de la boîte de dialogue
+showConfirm('Annuler définitivement ce paiement ? Il n\'apparaîtra plus dans les totaux, mais restera visible (barré) dans l\'historique.', async ()=>{
+try{
+await updateDoc(doc(db, 'etablissements', currentEtabId, 'transactions', txId), {
+annule: true,
+raisonAnnulation: raison || '',
+annulePar: currentUser ? currentUser.email : '',
+dateAnnulation: serverTimestamp()
+});
+toast('Paiement annulé');
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+});
+};
 function renderAccueil(){
 document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
 const alerts = roomsCache.filter(r=>r.alerteSansPaiement===true);
