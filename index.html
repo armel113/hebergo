@@ -19,10 +19,14 @@
 html,body{margin:0;padding:0;background:#d9d3c1;font-family:'Manrope',sans-serif;color:var(--ink);}
 body{display:flex;justify-content:center;min-height:100vh;}
 #app{width:100%;max-width:430px;min-height:100vh;min-height:100dvh;background:var(--paper);display:flex;flex-direction:column;position:relative;box-shadow:0 0 40px rgba(0,0,0,.15);}
-#authScreen{flex:1;display:flex;flex-direction:column;justify-content:center;padding:32px 26px;}
-#authScreen .mark{width:52px;height:52px;border-radius:16px;background:var(--teal);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Fraunces',serif;font-weight:600;font-size:27px;margin-bottom:18px;}
-#authScreen h1{font-family:'Fraunces',serif;font-size:29.5px;margin:0 0 4px;}
-#authScreen p.sub{font-size:15.5px;color:var(--ink-soft);margin:0 0 26px;}
+#authScreen{flex:1;display:flex;flex-direction:column;justify-content:center;padding:32px 26px;position:relative;background:
+radial-gradient(circle at 18% -8%, rgba(255,255,255,.22), transparent 42%),
+repeating-linear-gradient(135deg, rgba(255,255,255,.045) 0px, rgba(255,255,255,.045) 1px, transparent 1px, transparent 27px),
+linear-gradient(165deg, #16302a 0%, #234a41 30%, #3d685a 52%, #8f7c4f 78%, #c9a86a 100%);
+}
+#authScreen .mark{width:52px;height:52px;border-radius:16px;background:var(--teal);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Fraunces',serif;font-weight:600;font-size:27px;margin-bottom:18px;box-shadow:0 6px 18px rgba(0,0,0,.25);}
+#authScreen h1{font-family:'Fraunces',serif;font-size:29.5px;margin:0 0 4px;color:#fff;}
+#authScreen p.sub{font-size:15.5px;color:rgba(255,255,255,.78);margin:0 0 26px;}
 #authError{font-size:14px;color:var(--coral);margin:8px 0 0;display:none;}
 header.top{padding:22px 20px 16px;display:flex;align-items:center;justify-content:space-between;}
 header.top .brand{display:flex;align-items:center;gap:10px;}
@@ -80,6 +84,7 @@ p.page-sub{font-size:14.5px;color:var(--ink-soft);margin:0 0 18px;}
 .legend{display:flex;gap:14px;margin-top:16px;font-size:13px;color:var(--ink-soft);flex-wrap:wrap;}
 .legend i{width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:middle;}
 .card-form{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;}
+#authScreen .card-form{box-shadow:0 20px 45px rgba(0,0,0,.25);border:none;}
 label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin:14px 0 6px;}
 label:first-child{margin-top:0;}
 input[type=text],input[type=tel],input[type=number],input[type=email],input[type=password],select.field{
@@ -244,12 +249,8 @@ nav.tabbar svg{width:20px;height:20px;}
 <input type="text" id="linkPassword" placeholder="Au moins 6 caractères">
 <label>Établissement</label>
 <select class="field" id="linkEtabSelect"></select>
-<label>Rôle</label>
-<div class="pill-choice" id="linkRole">
-<div class="pill sel" data-role="admin">Admin (propriétaire)</div>
-<div class="pill" data-role="gerant">Gérant</div>
-</div>
-<button class="btn-primary" onclick="rattacherCompte()">Créer le compte</button>
+<p class="page-sub" style="margin:2px 0 0;">Ce compte sera créé avec le rôle Admin (propriétaire). Les comptes gérants se créent depuis "Mon équipe", par le propriétaire lui-même.</p>
+<button class="btn-primary" onclick="rattacherCompte()">Créer le compte propriétaire</button>
 </div>
 <p class="section-lbl">Établissements clients</p>
 <div id="etabStats" class="stat-row"></div>
@@ -428,6 +429,18 @@ document.getElementById('authError').textContent = 'Cet établissement est en pa
 document.getElementById('authError').style.display = 'block';
 return;
 }
+if(currentUserRole==='gerant'){
+const membreSnap = await getDoc(doc(db, 'etablissements', currentEtabId, 'membres', uid));
+const membreActif = !membreSnap.exists() || membreSnap.data().actif !== false;
+if(!membreActif){
+document.getElementById('mainApp').style.display = 'none';
+document.getElementById('authScreen').style.display = 'flex';
+document.getElementById('authError').style.color = 'var(--coral)';
+document.getElementById('authError').textContent = 'Ton accès a été suspendu par le propriétaire. Contacte-le pour plus d\'informations.';
+document.getElementById('authError').style.display = 'block';
+return;
+}
+}
 listenRooms();
 listenTransactionsToday();
 listenTransactionHistory();
@@ -473,17 +486,25 @@ return;
 el.innerHTML = membres.map(d=>{
 const data = d.data();
 const roleLbl = data.role==='admin' ? 'Admin' : 'Gérant';
+const suspendu = data.actif===false;
+const statutLbl = data.role==='gerant' ? (suspendu ? 'Suspendu' : 'Actif') : roleLbl;
+const suspendBtn = data.role==='gerant'
+? `<button class="btn-mini" onclick="toggleGerantActif('${d.id}', ${!suspendu})">${suspendu ? 'Réactiver' : 'Suspendre'}</button>`
+: '';
 const retirerBtn = data.role==='gerant'
-? `<button class="btn-mini" onclick="retirerGerant('${d.id}')">Retirer l'accès</button>`
+? `<button class="btn-mini" style="color:var(--coral);border-color:var(--coral);" onclick="retirerGerant('${d.id}')">Retirer définitivement</button>`
 : '';
 return `
-<div class="tx-item">
+<div class="tx-item" style="align-items:flex-start;">
 <div class="num">${roleLbl.slice(0,1)}</div>
 <div class="info">
 <p class="name">${data.email || d.id}</p>
-<p class="meta">${roleLbl}</p>
+<p class="meta">${roleLbl}${data.role==='gerant' ? ' · '+statutLbl : ''}</p>
 </div>
-${retirerBtn}
+<div style="display:flex;flex-direction:column;gap:10px;margin-left:auto;flex-shrink:0;">
+${suspendBtn.replace('class="btn-mini"','class="btn-mini" style="margin-left:0;"')}
+${retirerBtn.replace('margin-left:auto;','margin-left:0;')}
+</div>
 </div>
 `;
 }).join('');
@@ -491,16 +512,29 @@ ${retirerBtn}
 toast('Erreur de chargement de l\'équipe : ' + err.message);
 }
 }
-window.retirerGerant = async function(uid){
+window.toggleGerantActif = async function(uid, actuellementActif){
 if(!currentEtabId) return;
 try{
-await deleteDoc(doc(db, 'etablissements', currentEtabId, 'membres', uid));
-await deleteDoc(doc(db, 'utilisateurs', uid));
-toast('Accès retiré. Son compte de connexion reste à supprimer dans Firebase Authentication si besoin.');
+await updateDoc(doc(db, 'etablissements', currentEtabId, 'membres', uid), { actif: !actuellementActif });
+await updateDoc(doc(db, 'utilisateurs', uid), { actif: !actuellementActif });
+toast(actuellementActif ? 'Accès suspendu' : 'Accès réactivé');
 await chargerEquipe();
 }catch(err){
 toast('Erreur : ' + err.message);
 }
+};
+window.retirerGerant = async function(uid){
+if(!currentEtabId) return;
+showConfirm('Retirer définitivement ce compte ? Il ne pourra plus être réactivé automatiquement (son email sera considéré comme déjà utilisé).', async ()=>{
+try{
+await deleteDoc(doc(db, 'etablissements', currentEtabId, 'membres', uid));
+await deleteDoc(doc(db, 'utilisateurs', uid));
+toast('Accès retiré définitivement. Son compte de connexion reste à supprimer dans Firebase Authentication si besoin.');
+await chargerEquipe();
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+});
 };
 window.creerGerant = async function(){
 const email = document.getElementById('teamEmail').value.trim();
@@ -976,7 +1010,7 @@ return `
 <p class="name">${e.nom}</p>
 <p class="meta">${statutLbl}</p>
 </div>
-<div style="display:flex;flex-direction:column;gap:6px;margin-left:auto;flex-shrink:0;">
+<div style="display:flex;flex-direction:column;gap:10px;margin-left:auto;flex-shrink:0;">
 <button class="btn-mini" style="margin-left:0;" onclick="toggleEtablissementActif('${e.id}', ${e.actif})">${btnLbl}</button>
 ${supprimerBtn}
 </div>
@@ -1025,17 +1059,11 @@ toast('Erreur : ' + err.message);
 }
 });
 };
-document.querySelectorAll('#linkRole .pill').forEach(p=>{
-p.addEventListener('click', ()=>{
-document.querySelectorAll('#linkRole .pill').forEach(x=>x.classList.remove('sel'));
-p.classList.add('sel');
-});
-});
 window.rattacherCompte = async function(){
 const email = document.getElementById('linkEmail').value.trim();
 const password = document.getElementById('linkPassword').value;
 const etabId = document.getElementById('linkEtabSelect').value;
-const role = document.querySelector('#linkRole .pill.sel').dataset.role;
+const role = 'admin';
 if(!email || !email.includes('@')){ toast('Email invalide'); return; }
 if(!password || password.length < 6){ toast('Mot de passe : au moins 6 caractères'); return; }
 if(!etabId){ toast('Choisis un établissement'); return; }
