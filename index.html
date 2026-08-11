@@ -177,6 +177,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <p class="section-lbl">Encaissé aujourd'hui</p>
 <div class="stat" style="margin-bottom:0;"><p class="lbl">Total</p><p class="val" id="statCash">0 <small>FCFA</small></p></div>
 <button class="btn-ghost" style="margin-top:16px;" onclick="openClients()">Historique des clients</button>
+<button class="btn-ghost" style="margin-top:10px;" onclick="genererRapportJournalier()">Rapport du jour (PDF)</button>
 </section>
 <section class="screen" id="screen-chambres">
 <h1 class="page-title">Chambres</h1>
@@ -1131,10 +1132,27 @@ if(list.length===0){
 el.innerHTML = '<div class="empty">Aucune réservation à venir</div>';
 return;
 }
-el.innerHTML = list.map(r=>{
+// Vue "calendrier" : regroupe les réservations par jour d'arrivée, avec un
+// en-tête de section pour chaque date (Aujourd'hui / Demain / jour de la
+// semaine), plutôt qu'une liste plate.
+const aujourdhui = new Date(); aujourdhui.setHours(0,0,0,0);
+const demain = new Date(aujourdhui.getTime() + 24*60*60*1000);
+let html = '';
+let dernierGroupe = null;
+list.forEach(r=>{
 const d = r.dateArrivee && r.dateArrivee.toDate ? r.dateArrivee.toDate() : null;
-const dateStr = d ? d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric'}) : '';
-return `
+const jourKey = d ? d.toDateString() : '—';
+if(jourKey !== dernierGroupe){
+dernierGroupe = jourKey;
+let label;
+if(d && d.toDateString()===aujourdhui.toDateString()) label = "Aujourd'hui";
+else if(d && d.toDateString()===demain.toDateString()) label = 'Demain';
+else if(d) label = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
+else label = 'Date inconnue';
+html += `<p class="section-lbl" style="margin-top:20px;">${label.charAt(0).toUpperCase()+label.slice(1)}</p>`;
+}
+const dateStr = d ? d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) : '';
+html += `
 <div class="res-item">
 <div class="num">${dateStr}</div>
 <div class="info">
@@ -1144,7 +1162,8 @@ return `
 <button class="btn-mini btn-convert-resa" data-id="${escapeHtml(r.id)}" data-nom="${escapeHtml(r.nom)}" data-tel="${escapeHtml(r.telephone||'')}" data-nuits="${r.nuits}">Check-in</button>
 </div>
 `;
-}).join('');
+});
+el.innerHTML = html;
 el.querySelectorAll('.btn-convert-resa').forEach(btn=>{
 btn.addEventListener('click', ()=> convertReservation(btn.dataset.id, btn.dataset.nom, btn.dataset.tel, parseInt(btn.dataset.nuits)));
 });
@@ -1262,6 +1281,91 @@ return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 // Dessine un filigrane répété en fond (nom de l'établissement, en diagonale
 // et en transparence) pour rendre plus difficile la fabrication d'un faux
 // reçu crédible en imprimant/modifiant une capture d'écran.
+// --- Rapport journalier (PDF) pour la passation entre équipes ---
+window.genererRapportJournalier = function(){
+try{
+const { jsPDF } = window.jspdf;
+const pdf = new jsPDF();
+const pageWidth = pdf.internal.pageSize.getWidth();
+const pageHeight = pdf.internal.pageSize.getHeight();
+const marge = 20;
+const etabNom = document.getElementById('estabName').textContent || 'Hébergo';
+const aujourdhui = new Date();
+ajouterFiligrane(pdf, etabNom);
+pdf.setFillColor(15, 110, 86);
+pdf.rect(0, 0, pageWidth, 38, 'F');
+pdf.setTextColor(255, 255, 255);
+pdf.setFont('helvetica', 'bold');
+pdf.setFontSize(20);
+pdf.text(etabNom, marge, 23);
+pdf.setFont('helvetica', 'normal');
+pdf.setFontSize(11);
+pdf.text('Rapport du jour — ' + aujourdhui.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}), marge, 32);
+let y = 55;
+pdf.setTextColor(18, 36, 31);
+const titre = (txt) => {
+if(y > pageHeight - 25){ pdf.addPage(); ajouterFiligrane(pdf, etabNom); y = 25; }
+pdf.setFont('helvetica', 'bold');
+pdf.setFontSize(13);
+pdf.text(txt, marge, y);
+y += 8;
+};
+const ligneSimple = (txt) => {
+if(y > pageHeight - 20){ pdf.addPage(); ajouterFiligrane(pdf, etabNom); y = 25; }
+pdf.setFont('helvetica', 'normal');
+pdf.setFontSize(10);
+pdf.text(txt, marge, y);
+y += 7;
+};
+// Occupation
+const occ = roomsCache.filter(r=>r.statut==='occupee').length;
+const total = roomsCache.length;
+titre('Chambres');
+ligneSimple('Occupées : ' + occ + ' / ' + total + ' (' + (total>0 ? Math.round(occ/total*100) : 0) + '%)');
+y += 4;
+// Arrivées prévues aujourd'hui
+const todayStr = aujourdhui.toDateString();
+const arrivals = reservationsCache.filter(r=>{
+const d = r.dateArrivee && r.dateArrivee.toDate ? r.dateArrivee.toDate() : null;
+return d && d.toDateString()===todayStr;
+});
+titre('Arrivées prévues aujourd\'hui (' + arrivals.length + ')');
+if(arrivals.length===0){ ligneSimple('Aucune'); } else {
+arrivals.forEach(a => ligneSimple('• ' + a.nom + (a.telephone ? ' — ' + a.telephone : '')));
+}
+y += 4;
+// Départs du jour
+const departs = roomsCache.filter(r=>r.statut==='occupee' && r.departAujourdhui);
+titre('Départs du jour (' + departs.length + ')');
+if(departs.length===0){ ligneSimple('Aucun'); } else {
+departs.forEach(d => ligneSimple('• Chambre ' + d.numero + (d.client ? ' — ' + d.client : '')));
+}
+y += 4;
+// Paiements du jour
+titre('Paiements du jour (' + txTodayCache.length + ')');
+if(txTodayCache.length===0){ ligneSimple('Aucun'); } else {
+txTodayCache.forEach(t=>{
+const heure = t.date && t.date.toDate ? t.date.toDate().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}) : '';
+ligneSimple('• ' + heure + ' — Chambre ' + (t.numeroChambre ?? '?') + (t.client ? ' (' + t.client + ')' : '') + ' — ' + t.mode + ' — ' + formatMontantPdf(t.montant||0) + ' FCFA');
+});
+}
+y += 6;
+if(y > pageHeight - 30){ pdf.addPage(); ajouterFiligrane(pdf, etabNom); y = 25; }
+pdf.setFillColor(225, 240, 234);
+pdf.roundedRect(marge, y, pageWidth - 2*marge, 22, 3, 3, 'F');
+pdf.setTextColor(10, 79, 62);
+pdf.setFont('helvetica', 'bold');
+pdf.setFontSize(13);
+pdf.text('Total encaissé aujourd\'hui', marge + 8, y + 14);
+pdf.setFontSize(16);
+const montantTxt = formatMontantPdf(cashToday) + ' FCFA';
+const montantWidth = pdf.getTextWidth(montantTxt);
+pdf.text(montantTxt, pageWidth - marge - 8 - montantWidth, y + 14);
+pdf.save('rapport-jour-' + aujourdhui.toISOString().slice(0,10) + '.pdf');
+}catch(err){
+toast('Erreur lors de la génération du rapport : ' + err.message);
+}
+};
 function ajouterFiligrane(pdf, texte){
 try{
 const pageWidth = pdf.internal.pageSize.getWidth();
