@@ -321,6 +321,9 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="status-opt" data-s="libre"><span>Libre</span><span class="sw" style="background:var(--teal)"></span></div>
 <div class="status-opt" data-s="occupee"><span>Occupée</span><span class="sw" style="background:var(--coral)"></span></div>
 <div class="status-opt" data-s="nettoyage"><span>À nettoyer</span><span class="sw" style="background:var(--amber)"></span></div>
+<label style="margin-top:16px;">Tarif par nuit (FCFA)</label>
+<input type="number" id="modalRoomTarif" placeholder="15000" min="0" max="5000000">
+<button class="btn-primary" onclick="enregistrerTarifChambre()">Enregistrer le tarif</button>
 <button class="btn-ghost" onclick="closeModal()">Fermer</button>
 </div>
 </div>
@@ -1012,9 +1015,22 @@ let activeRoomModalId = null, activeRoomModalNum = null;
 window.openRoomModal = function(id, num){
 activeRoomModalId = id; activeRoomModalNum = num;
 document.getElementById('modalRoomTitle').textContent = 'Chambre ' + num;
+const room = roomsCache.find(r=>r.id===id);
+document.getElementById('modalRoomTarif').value = room && room.tarif ? room.tarif : '';
 document.getElementById('roomModal').classList.add('show');
 };
 window.closeModal = function(){ document.getElementById('roomModal').classList.remove('show'); };
+window.enregistrerTarifChambre = async function(){
+const tarif = parseInt(document.getElementById('modalRoomTarif').value) || 0;
+if(!activeRoomModalId) return;
+try{
+await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', activeRoomModalId), { tarif });
+toast('Tarif enregistré pour la chambre '+activeRoomModalNum);
+closeModal();
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+};
 function showConfirm(message, onConfirm){
 document.getElementById('confirmModalMsg').textContent = message;
 const okBtn = document.getElementById('confirmModalOk');
@@ -1173,12 +1189,22 @@ sel.innerHTML = occ.length
 ? occ.map(r=>{
 const checkinStr = r.dateCheckin && r.dateCheckin.toDate ? r.dateCheckin.toDate().toLocaleDateString('fr-FR') : '';
 const departStr = r.dateDepartPrevue && r.dateDepartPrevue.toDate ? r.dateDepartPrevue.toDate().toLocaleDateString('fr-FR') : '';
-return `<option value="${r.id}" data-num="${r.numero}" data-client="${escapeHtml(r.client||'')}" data-nuits="${r.nuits||''}" data-checkin="${checkinStr}" data-depart="${departStr}">Chambre ${r.numero} · ${escapeHtml(r.client||'')}</option>`;
+return `<option value="${r.id}" data-num="${r.numero}" data-client="${escapeHtml(r.client||'')}" data-nuits="${r.nuits||''}" data-checkin="${checkinStr}" data-depart="${departStr}" data-tarif="${r.tarif||''}">Chambre ${r.numero} · ${escapeHtml(r.client||'')}</option>`;
 }).join('')
 : `<option value="">Aucun client en séjour</option>`;
 updatePaidInfo();
+suggererMontant();
 }
-document.getElementById('payRoom').addEventListener('change', updatePaidInfo);
+document.getElementById('payRoom').addEventListener('change', ()=>{ updatePaidInfo(); suggererMontant(); });
+function suggererMontant(){
+const opt = document.getElementById('payRoom').selectedOptions[0];
+const amountEl = document.getElementById('payAmount');
+if(!opt || !opt.dataset.tarif || amountEl.value){ return; } // ne pas écraser une saisie déjà en cours
+const nuits = parseInt(opt.dataset.nuits) || 1;
+const suggestion = parseInt(opt.dataset.tarif) * nuits;
+amountEl.value = suggestion;
+document.getElementById('payPreview').textContent = suggestion.toLocaleString('fr-FR')+' FCFA';
+}
 document.querySelectorAll('#payMode .pill').forEach(p=>{
 p.addEventListener('click', ()=>{
 document.querySelectorAll('#payMode .pill').forEach(x=>x.classList.remove('sel'));
