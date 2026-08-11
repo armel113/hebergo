@@ -226,7 +226,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <select class="field" id="ciRoom"></select>
 <label>Nuits</label>
 <input type="number" id="ciNights" value="1" min="1" max="90">
-<button class="btn-primary" onclick="doCheckin()">Enregistrer le client</button>
+<button class="btn-primary" id="btnDoCheckin" onclick="doCheckin()">Enregistrer le client</button>
 </div>
 </section>
 <section class="screen" id="screen-reservations">
@@ -241,7 +241,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <input type="date" id="resDate">
 <label>Nuits prévues</label>
 <input type="number" id="resNights" value="1" min="1" max="90">
-<button class="btn-primary" onclick="addReservation()">Enregistrer la réservation</button>
+<button class="btn-primary" id="btnAddReservation" onclick="addReservation()">Enregistrer la réservation</button>
 </div>
 <p class="section-lbl">Réservations à venir</p>
 <div id="reservationList"></div>
@@ -262,7 +262,7 @@ nav.tabbar svg{width:20px;height:20px;}
 </div>
 <label class="checkbox-row hidden" id="payExtendRow"><input type="checkbox" id="payExtend"> Prolongation de séjour (nouveau paiement pour cette chambre)</label>
 <div class="amount-display"><p class="n" id="payPreview">0 FCFA</p></div>
-<button class="btn-primary" onclick="doPayment()">Confirmer le paiement</button>
+<button class="btn-primary" id="btnDoPayment" onclick="doPayment()">Confirmer le paiement</button>
 </div>
 <p class="section-lbl">Derniers paiements</p>
 <input type="text" id="txHistorySearch" placeholder="Rechercher par chambre ou client…" oninput="filtrerTxHistory()" style="margin-bottom:10px;">
@@ -1270,6 +1270,8 @@ const digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
 e.target.value = digits.replace(/(\d{2})(?=\d)/g, '$1 ').trim();
 });
 window.doCheckin = async function(){
+const btn = document.getElementById('btnDoCheckin');
+if(btn.disabled) return; // protection anti double-tap : évite un client enregistré deux fois
 const name = document.getElementById('ciName').value.trim();
 const phone = document.getElementById('ciPhone').value.trim();
 const phoneDigits = phone.replace(/[^0-9]/g, '');
@@ -1279,6 +1281,8 @@ if(nights < 1) nights = 1;
 if(nights > 90) nights = 90;
 if(!name || name.length < 2 || !roomId){ toast('Nom (2 caractères min) et chambre requis'); return; }
 if(phone && phoneDigits.length !== 10){ toast('Téléphone : 10 chiffres attendus (ex. 0700000000)'); return; }
+btn.disabled = true; btn.textContent = 'Enregistrement…';
+try{
 await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), {
 statut: 'occupee', client: name, departAujourdhui: nights<=1,
 dateCheckin: serverTimestamp(), dernierStatutPar: currentUser ? currentUser.email : '',
@@ -1292,6 +1296,11 @@ document.getElementById('ciName').value='';
 document.getElementById('ciPhone').value='';
 document.getElementById('ciNights').value=1;
 toast(name+' installé(e)');
+}catch(err){
+toast('Erreur : ' + err.message);
+}finally{
+btn.disabled = false; btn.textContent = 'Enregistrer le client';
+}
 };
 let unsubReservations = null;
 let reservationsCache = [];
@@ -1367,6 +1376,8 @@ toast('Erreur : ' + err.message);
 });
 };
 window.addReservation = async function(){
+const btn = document.getElementById('btnAddReservation');
+if(btn.disabled) return;
 const name = document.getElementById('resName').value.trim();
 const phone = document.getElementById('resPhone').value.trim();
 const phoneDigits = phone.replace(/[^0-9]/g, '');
@@ -1376,6 +1387,8 @@ if(nights < 1) nights = 1;
 if(nights > 90) nights = 90;
 if(!name || name.length < 2 || !dateVal){ toast('Nom (2 caractères min) et date requis'); return; }
 if(phone && phoneDigits.length !== 10){ toast('Téléphone : 10 chiffres attendus (ex. 0700000000)'); return; }
+btn.disabled = true; btn.textContent = 'Enregistrement…';
+try{
 await addDoc(collection(db, 'etablissements', currentEtabId, 'reservations'), {
 nom: name, telephone: phoneDigits, nuits: nights,
 dateArrivee: Timestamp.fromDate(new Date(dateVal+'T00:00:00')),
@@ -1386,6 +1399,11 @@ document.getElementById('resPhone').value='';
 document.getElementById('resDate').value='';
 document.getElementById('resNights').value=1;
 toast('Réservation enregistrée pour '+name);
+}catch(err){
+toast('Erreur : ' + err.message);
+}finally{
+btn.disabled = false; btn.textContent = 'Enregistrer la réservation';
+}
 };
 window.convertReservation = async function(resId, nom, telephone, nuits){
 await updateDoc(doc(db, 'etablissements', currentEtabId, 'reservations', resId), { statut: 'convertie' });
@@ -1436,6 +1454,8 @@ if(v < 0){ v = 0; e.target.value = v; }
 document.getElementById('payPreview').textContent = v.toLocaleString('fr-FR')+' FCFA';
 });
 window.doPayment = async function(){
+const btn = document.getElementById('btnDoPayment');
+if(btn.disabled) return; // protection anti double-tap : évite un paiement enregistré deux fois
 let amount = parseInt(document.getElementById('payAmount').value)||0;
 const roomSel = document.getElementById('payRoom');
 const mode = document.querySelector('#payMode .pill.sel').dataset.mode;
@@ -1447,6 +1467,8 @@ if(paidToday>0 && !extendBox.checked){
 toast('Cette chambre a déjà un paiement aujourd\'hui. Coche "Prolongation de séjour" pour confirmer un nouveau paiement.');
 return;
 }
+btn.disabled = true; btn.textContent = 'Enregistrement…';
+try{
 const txRef = await addDoc(collection(db, 'etablissements', currentEtabId, 'transactions'), {
 montant: amount, mode, chambreId: roomSel.value,
 numeroChambre: roomSel.selectedOptions[0].dataset.num,
@@ -1469,6 +1491,11 @@ document.getElementById('payAmount').value='';
 document.getElementById('payPreview').textContent='0 FCFA';
 extendBox.checked = false;
 toast('Paiement de '+amount.toLocaleString('fr-FR')+' FCFA confirmé');
+}catch(err){
+toast('Erreur : ' + err.message);
+}finally{
+btn.disabled = false; btn.textContent = 'Confirmer le paiement';
+}
 };
 // Formate un montant en FCFA avec des espaces normaux comme séparateurs de
 // milliers (toLocaleString('fr-FR') utilise un espace fine insécable que la
