@@ -121,6 +121,7 @@ nav.tabbar svg{width:20px;height:20px;}
 .status-opt .sw{width:14px;height:14px;border-radius:4px;}
 .hidden{display:none !important;}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -359,6 +360,15 @@ const t = document.getElementById('toast');
 t.textContent = msg; t.classList.add('show');
 setTimeout(()=>t.classList.remove('show'), 1800);
 }
+// Échappe toute donnée saisie par un utilisateur (nom de client, email, nom
+// d'établissement...) avant de l'insérer dans du innerHTML, pour éviter
+// qu'un caractère spécial (guillemet, <, >) casse le HTML ou exécute du
+// script (XSS). À utiliser systématiquement pour toute valeur qui vient de
+// Firestore/d'une saisie utilisateur — jamais pour du HTML qu'on écrit
+// nous-mêmes dans le code.
+function escapeHtml(str){
+return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 window.handleLogin = async function(){
 const email = document.getElementById('authEmail').value.trim();
 const pass = document.getElementById('authPassword').value;
@@ -509,7 +519,7 @@ return `
 <div class="tx-item" style="align-items:flex-start;">
 <div class="num">${roleLbl.slice(0,1)}</div>
 <div class="info">
-<p class="name">${data.email || d.id}</p>
+<p class="name">${escapeHtml(data.email || d.id)}</p>
 <p class="meta">${roleLbl}${data.role==='gerant' ? ' · '+statutLbl : ''}</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:10px;margin-left:auto;flex-shrink:0;">
@@ -642,7 +652,8 @@ return;
 }
 el.innerHTML = list.map(t=>{
 const heure = t.date && t.date.toDate ? t.date.toDate().toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}) : '';
-const clientLbl = t.client ? ' · '+t.client : '';
+const clientLbl = t.client ? ' · '+escapeHtml(t.client) : '';
+const dateIso = t.date && t.date.toDate ? t.date.toDate().toISOString() : new Date().toISOString();
 return `
 <div class="tx-item">
 <div class="num">${t.numeroChambre ?? '?'}</div>
@@ -650,10 +661,23 @@ return `
 <p class="name">Chambre ${t.numeroChambre ?? '?'}${clientLbl}</p>
 <p class="meta">${t.mode || ''}${heure ? ' · ' + heure : ''}</p>
 </div>
+<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
 <div class="amt">${(t.montant||0).toLocaleString('fr-FR')} FCFA</div>
+<button class="btn-mini btn-recu" style="margin-left:0;padding:4px 8px;font-size:10px;" data-montant="${t.montant||0}" data-mode="${escapeHtml(t.mode||'')}" data-chambre="${escapeHtml(String(t.numeroChambre??''))}" data-client="${escapeHtml(t.client||'')}" data-date="${dateIso}">Reçu</button>
+</div>
 </div>
 `;
 }).join('');
+el.querySelectorAll('.btn-recu').forEach(btn=>{
+btn.addEventListener('click', ()=> genererRecuPDF({
+etabNom: document.getElementById('estabName').textContent || 'Hébergo',
+date: new Date(btn.dataset.date),
+chambre: btn.dataset.chambre,
+client: btn.dataset.client,
+mode: btn.dataset.mode,
+montant: parseInt(btn.dataset.montant)||0
+}));
+});
 }
 function renderAccueil(){
 document.getElementById('todayDate').textContent = new Date().toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
@@ -674,7 +698,7 @@ return `
 <div class="alert-item">
 <div class="num">${label}</div>
 <div class="info">
-<p class="name">Chambre ${label} · ${a.alerteClient || ''}</p>
+<p class="name">Chambre ${label} · ${escapeHtml(a.alerteClient || '')}</p>
 <p class="meta">Départ sans paiement enregistré</p>
 </div>
 ${resolveBtn}
@@ -702,7 +726,7 @@ return `
 <div class="depart-item">
 <div class="num">${label}</div>
 <div class="info">
-<p class="name">Chambre ${label} · ${d.client || ''}</p>
+<p class="name">Chambre ${label} · ${escapeHtml(d.client || '')}</p>
 <p class="meta">Départ aujourd'hui</p>
 </div>
 <button class="btn-mini" onclick="markDeparted('${d.id}', ${hasNum ? d.numero : "'"+label+"'"})">Départ fait</button>
@@ -862,13 +886,16 @@ return `
 <div class="res-item">
 <div class="num">${dateStr}</div>
 <div class="info">
-<p class="name">${r.nom}</p>
-<p class="meta">${r.nuits} nuit${r.nuits>1?'s':''}${r.telephone ? ' · '+r.telephone : ''}</p>
+<p class="name">${escapeHtml(r.nom)}</p>
+<p class="meta">${r.nuits} nuit${r.nuits>1?'s':''}${r.telephone ? ' · '+escapeHtml(r.telephone) : ''}</p>
 </div>
-<button class="btn-mini" onclick="convertReservation('${r.id}', '${r.nom.replace(/'/g,"\\'")}', '${r.telephone||''}', ${r.nuits})">Check-in</button>
+<button class="btn-mini btn-convert-resa" data-id="${escapeHtml(r.id)}" data-nom="${escapeHtml(r.nom)}" data-tel="${escapeHtml(r.telephone||'')}" data-nuits="${r.nuits}">Check-in</button>
 </div>
 `;
 }).join('');
+el.querySelectorAll('.btn-convert-resa').forEach(btn=>{
+btn.addEventListener('click', ()=> convertReservation(btn.dataset.id, btn.dataset.nom, btn.dataset.tel, parseInt(btn.dataset.nuits)));
+});
 }
 window.addReservation = async function(){
 const name = document.getElementById('resName').value.trim();
@@ -907,7 +934,7 @@ function renderPayOptions(){
 const sel = document.getElementById('payRoom');
 const occ = roomsCache.filter(r=>r.statut==='occupee');
 sel.innerHTML = occ.length
-? occ.map(r=>`<option value="${r.id}" data-num="${r.numero}" data-client="${(r.client||'').replace(/"/g,'&quot;')}">Chambre ${r.numero} · ${r.client||''}</option>`).join('')
+? occ.map(r=>`<option value="${r.id}" data-num="${r.numero}" data-client="${escapeHtml(r.client||'')}">Chambre ${r.numero} · ${escapeHtml(r.client||'')}</option>`).join('')
 : `<option value="">Aucun client en séjour</option>`;
 updatePaidInfo();
 }
@@ -943,11 +970,67 @@ numeroChambre: roomSel.selectedOptions[0].dataset.num,
 client: roomSel.selectedOptions[0].dataset.client || '',
 date: serverTimestamp()
 });
+genererRecuPDF({
+etabNom: document.getElementById('estabName').textContent || 'Hébergo',
+date: new Date(),
+chambre: roomSel.selectedOptions[0].dataset.num,
+client: roomSel.selectedOptions[0].dataset.client || '',
+mode,
+montant: amount
+});
 document.getElementById('payAmount').value='';
 document.getElementById('payPreview').textContent='0 FCFA';
 extendBox.checked = false;
 toast('Paiement de '+amount.toLocaleString('fr-FR')+' FCFA confirmé');
 };
+// Génère et télécharge un reçu PDF pour un paiement (nouveau ou passé, via
+// l'historique). Nécessite la librairie jsPDF chargée dans <head>.
+function genererRecuPDF(data){
+try{
+const { jsPDF } = window.jspdf;
+const pdf = new jsPDF();
+const marge = 20;
+let y = 25;
+const dateStr = data.date.toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+pdf.setFont('helvetica', 'bold');
+pdf.setFontSize(20);
+pdf.text(data.etabNom, marge, y);
+y += 10;
+pdf.setFont('helvetica', 'normal');
+pdf.setFontSize(11);
+pdf.text('Reçu de paiement', marge, y);
+y += 12;
+pdf.setDrawColor(200);
+pdf.line(marge, y, 190, y);
+y += 10;
+const ligne = (label, valeur) => {
+pdf.setFont('helvetica', 'bold');
+pdf.text(label, marge, y);
+pdf.setFont('helvetica', 'normal');
+pdf.text(String(valeur), marge + 45, y);
+y += 9;
+};
+ligne('Date', dateStr);
+ligne('Chambre', data.chambre || '—');
+if(data.client) ligne('Client', data.client);
+ligne('Mode de paiement', data.mode || '—');
+y += 4;
+pdf.line(marge, y, 190, y);
+y += 12;
+pdf.setFont('helvetica', 'bold');
+pdf.setFontSize(16);
+pdf.text('Montant payé : ' + data.montant.toLocaleString('fr-FR') + ' FCFA', marge, y);
+y += 20;
+pdf.setFont('helvetica', 'normal');
+pdf.setFontSize(9);
+pdf.setTextColor(140);
+pdf.text('Reçu généré automatiquement par Hébergo.', marge, y);
+const dateFichier = data.date.toISOString().slice(0,10);
+pdf.save('recu-chambre'+(data.chambre||'')+'-'+dateFichier+'.pdf');
+}catch(err){
+toast('Erreur lors de la génération du reçu : ' + err.message);
+}
+}
 function slugify(str){
 return str.toLowerCase()
 .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -994,7 +1077,7 @@ try{
 const snap = await getDocs(collection(db, 'etablissements'));
 const etabs = snap.docs.map(d=>({id:d.id, nom: d.data().nom || d.id, actif: d.data().actif !== false})).sort((a,b)=>a.nom.localeCompare(b.nom));
 sel.innerHTML = etabs.length
-? etabs.map(e=>`<option value="${e.id}">${e.nom}</option>`).join('')
+? etabs.map(e=>`<option value="${e.id}">${escapeHtml(e.nom)}</option>`).join('')
 : `<option value="">Aucun établissement</option>`;
 const statsEl = document.getElementById('etabStats');
 if(statsEl){
@@ -1007,9 +1090,6 @@ statsEl.innerHTML = `
 }
 const listEl = document.getElementById('etabList');
 if(listEl){
-function escapeHtml(str){
-return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
 listEl.innerHTML = etabs.length ? etabs.map(e=>{
 const statutLbl = e.actif ? 'Actif' : 'En pause';
 const btnLbl = e.actif ? 'Mettre en pause' : 'Réactiver';
