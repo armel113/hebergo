@@ -95,7 +95,7 @@ p.page-sub{font-size:14.5px;color:var(--ink-soft);margin:0 0 18px;}
 .about-panel a{color:#fff;font-weight:700;text-decoration:none;}
 label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin:14px 0 6px;}
 label:first-child{margin-top:0;}
-input[type=text],input[type=tel],input[type=number],input[type=email],input[type=password],select.field,textarea{
+input[type=text],input[type=tel],input[type=number],input[type=email],input[type=password],input[type=date],select.field,textarea{
 width:100%;border:1px solid var(--line);background:var(--paper);border-radius:var(--radius-sm);padding:11px 12px;font-size:16px;font-family:'Manrope';color:var(--ink);
 }
 input:focus,select.field:focus,textarea:focus{outline:2px solid var(--teal);outline-offset:1px;}
@@ -332,6 +332,12 @@ nav.tabbar svg{width:20px;height:20px;}
 <p class="section-lbl">Export des données</p>
 <button class="btn-ghost" onclick="exporterPaiementsCSV()">Exporter les paiements du mois (CSV)</button>
 <button class="btn-ghost" onclick="exporterClientsCSV()">Exporter tous les clients (CSV)</button>
+<label style="margin-top:18px;">Export sur une période précise</label>
+<div style="display:flex;gap:8px;">
+<input type="date" id="exportDateDebut">
+<input type="date" id="exportDateFin">
+</div>
+<button class="btn-ghost" style="margin-top:10px;" onclick="exporterPaiementsPeriodeCSV()">Exporter les paiements de cette période (CSV)</button>
 </section>
 <section class="screen" id="screen-clients">
 <p class="page-sub" style="cursor:pointer;margin-bottom:10px;" onclick="document.querySelector('.tab-btn[data-screen=accueil]').click()">← Retour</p>
@@ -651,6 +657,29 @@ const dateStr = t.date && t.date.toDate ? t.date.toDate().toLocaleString('fr-FR'
 lignes.push([dateStr, t.numeroChambre ?? '', t.client || '', t.mode || '', t.montant || 0]);
 });
 telechargerCSV('paiements-'+new Date().toISOString().slice(0,7)+'.csv', lignes);
+};
+window.exporterPaiementsPeriodeCSV = async function(){
+if(!currentEtabId) return;
+const debutVal = document.getElementById('exportDateDebut').value;
+const finVal = document.getElementById('exportDateFin').value;
+if(!debutVal || !finVal){ toast('Choisis une date de début et une date de fin'); return; }
+const debut = new Date(debutVal + 'T00:00:00');
+const fin = new Date(finVal + 'T23:59:59');
+if(debut > fin){ toast('La date de début doit être avant la date de fin'); return; }
+try{
+const txRef = collection(db, 'etablissements', currentEtabId, 'transactions');
+const snap = await getDocs(query(txRef, where('date', '>=', Timestamp.fromDate(debut)), where('date', '<=', Timestamp.fromDate(fin))));
+const paiements = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(t=>!t.annule);
+if(paiements.length===0){ toast('Aucun paiement sur cette période'); return; }
+const lignes = [['Date', 'Chambre', 'Client', 'Mode de paiement', 'Montant (FCFA)']];
+paiements.forEach(t=>{
+const dateStr = t.date && t.date.toDate ? t.date.toDate().toLocaleString('fr-FR') : '';
+lignes.push([dateStr, t.numeroChambre ?? '', t.client || '', t.mode || '', t.montant || 0]);
+});
+telechargerCSV('paiements-'+debutVal+'-au-'+finVal+'.csv', lignes);
+}catch(err){
+toast('Erreur lors de l\'export : ' + err.message);
+}
 };
 window.exporterClientsCSV = async function(){
 if(!currentEtabId) return;
