@@ -52,7 +52,7 @@ p.page-sub{font-size:14.5px;color:var(--ink-soft);margin:0 0 18px;}
 .depart-item .info p{margin:0;}
 .depart-item .name{font-size:14.5px;font-weight:600;}
 .depart-item .meta{font-size:13px;color:var(--ink-soft);}
-.depart-item .btn-mini{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:12.5px;padding:6px 10px;font-weight:600;color:var(--teal-deep);}
+.depart-item .btn-mini{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:12.5px;padding:9px 13px;font-weight:600;color:var(--teal-deep);}
 .empty{text-align:center;padding:26px 10px;color:var(--ink-faint);font-size:14.5px;background:var(--card);border:1px dashed var(--line);border-radius:var(--radius-md);}
 .tx-item{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;}
 .tx-item .num{width:36px;height:36px;border-radius:10px;background:var(--teal-tint);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0;}
@@ -67,13 +67,14 @@ p.page-sub{font-size:14.5px;color:var(--ink-soft);margin:0 0 18px;}
 .res-item .info p{margin:0;}
 .res-item .name{font-size:14.5px;font-weight:600;}
 .res-item .meta{font-size:13px;color:var(--ink-soft);}
-.res-item .btn-mini{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:12.5px;padding:6px 10px;font-weight:600;color:var(--teal-deep);flex-shrink:0;}
+.res-item .btn-mini{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:8px;font-size:12.5px;padding:9px 13px;font-weight:600;color:var(--teal-deep);flex-shrink:0;}
 .alert-item{display:flex;align-items:center;gap:12px;background:var(--coral-tint);border:1px solid var(--coral);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:8px;}
 .alert-item .num{width:36px;height:36px;border-radius:10px;background:#fff;color:var(--coral);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0;}
 .alert-item .info p{margin:0;}
 .alert-item .name{font-size:14.5px;font-weight:600;color:var(--coral);}
 .alert-item .meta{font-size:13px;color:var(--ink-soft);}
-.alert-item .btn-mini{margin-left:auto;border:1px solid var(--coral);background:#fff;border-radius:8px;font-size:12.5px;padding:6px 10px;font-weight:600;color:var(--coral);flex-shrink:0;}
+.alert-item .btn-mini{margin-left:auto;border:1px solid var(--coral);background:#fff;border-radius:8px;font-size:12.5px;padding:9px 13px;font-weight:600;color:var(--coral);flex-shrink:0;}
+.btn-mini{border:1px solid var(--line);background:#fff;border-radius:8px;font-size:12.5px;padding:9px 13px;font-weight:600;color:var(--teal-deep);}
 .paid-info{font-size:14px;color:var(--coral);background:var(--coral-tint);border-radius:var(--radius-sm);padding:8px 12px;margin:-6px 0 14px;font-weight:600;}
 .checkbox-row{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-soft);font-weight:600;margin:2px 0 14px;}
 .checkbox-row input{width:16px;height:16px;}
@@ -983,7 +984,7 @@ return `
 `;
 }
 const annulerBtn = peutAnnuler
-? `<button class="btn-mini btn-annuler" style="margin-left:0;padding:4px 8px;font-size:10px;color:var(--coral);border-color:var(--coral);" data-id="${escapeHtml(t.id||'')}">Annuler</button>`
+? `<button class="btn-mini btn-annuler" style="margin-left:0;padding:7px 11px;font-size:11px;color:var(--coral);border-color:var(--coral);" data-id="${escapeHtml(t.id||'')}">Annuler</button>`
 : '';
 return `
 <div class="tx-item">
@@ -995,7 +996,7 @@ return `
 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
 <div class="amt">${(t.montant||0).toLocaleString('fr-FR')} FCFA</div>
 <div style="display:flex;gap:6px;">
-<button class="btn-mini btn-recu" style="margin-left:0;padding:4px 8px;font-size:10px;" data-montant="${t.montant||0}" data-mode="${escapeHtml(t.mode||'')}" data-chambre="${escapeHtml(String(t.numeroChambre??''))}" data-client="${escapeHtml(t.client||'')}" data-date="${dateIso}" data-ref="${escapeHtml(t.id||'')}">Reçu</button>
+<button class="btn-mini btn-recu" style="margin-left:0;padding:7px 11px;font-size:11px;" data-montant="${t.montant||0}" data-mode="${escapeHtml(t.mode||'')}" data-chambre="${escapeHtml(String(t.numeroChambre??''))}" data-client="${escapeHtml(t.client||'')}" data-date="${dateIso}" data-ref="${escapeHtml(t.id||'')}">Reçu</button>
 ${annulerBtn}
 </div>
 </div>
