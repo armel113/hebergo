@@ -198,6 +198,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <span><i style="background:var(--coral)"></i>Occupée</span>
 <span><i style="background:var(--amber)"></i>À nettoyer</span>
 </div>
+<button class="btn-ghost" style="margin-top:16px;" onclick="definirTarifGlobal()">Régler le même tarif pour toutes les chambres</button>
 </section>
 <section class="screen" id="screen-checkin">
 <h1 class="page-title">Check-in</h1>
@@ -1041,6 +1042,28 @@ closeModal();
 }catch(err){
 toast('Erreur : ' + err.message);
 }
+};
+window.definirTarifGlobal = function(){
+if(roomsCache.length===0){ toast('Aucune chambre à mettre à jour'); return; }
+const saisie = window.prompt('Tarif par nuit (FCFA) à appliquer à toutes les '+roomsCache.length+' chambres :', '');
+if(saisie === null) return;
+const tarif = parseInt(saisie) || 0;
+if(tarif <= 0){ toast('Merci d\'indiquer un montant valide'); return; }
+showConfirm('Appliquer '+tarif.toLocaleString('fr-FR')+' FCFA/nuit à toutes les '+roomsCache.length+' chambres ? Ça remplacera les tarifs déjà réglés individuellement.', async ()=>{
+try{
+let batch = writeBatch(db);
+let count = 0;
+for(const r of roomsCache){
+batch.update(doc(db, 'etablissements', currentEtabId, 'chambres', r.id), { tarif });
+count++;
+if(count % 400 === 0){ await batch.commit(); batch = writeBatch(db); }
+}
+await batch.commit();
+toast('Tarif appliqué à '+roomsCache.length+' chambres');
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+});
 };
 function showConfirm(message, onConfirm){
 document.getElementById('confirmModalMsg').textContent = message;
