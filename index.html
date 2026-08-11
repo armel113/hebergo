@@ -743,14 +743,32 @@ return `
 <p class="name">${escapeHtml(c.nom||'')}</p>
 <p class="meta">${escapeHtml(c.telephone||'')}${dateStr ? ' · '+dateStr : ''}${c.nuits ? ' · '+c.nuits+' nuit'+(c.nuits>1?'s':'') : ''}</p>
 </div>
-<button class="btn-mini btn-modifier-client" style="margin-left:auto;" data-id="${escapeHtml(c.id||'')}">Modifier</button>
+<div style="display:flex;flex-direction:column;gap:6px;margin-left:auto;flex-shrink:0;">
+<button class="btn-mini btn-modifier-client" style="margin-left:0;" data-id="${escapeHtml(c.id||'')}">Modifier</button>
+<button class="btn-mini btn-supprimer-client" style="margin-left:0;color:var(--coral);border-color:var(--coral);" data-id="${escapeHtml(c.id||'')}" data-nom="${escapeHtml(c.nom||'')}">Supprimer</button>
+</div>
 </div>
 `;
 }).join('');
 el.querySelectorAll('.btn-modifier-client').forEach(btn=>{
 btn.addEventListener('click', ()=> modifierClient(btn.dataset.id));
 });
+el.querySelectorAll('.btn-supprimer-client').forEach(btn=>{
+btn.addEventListener('click', ()=> supprimerClient(btn.dataset.id, btn.dataset.nom));
+});
 }
+window.supprimerClient = function(clientId, nom){
+showConfirm('Supprimer définitivement la fiche de "'+nom+'" ? Cette action est irréversible (utile pour une fiche en double ou une erreur de saisie).', async ()=>{
+try{
+await deleteDoc(doc(db, 'etablissements', currentEtabId, 'clients', clientId));
+toast('Fiche supprimée');
+await chargerClients();
+document.getElementById('clientsSearch').dispatchEvent(new Event('input'));
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+});
+};
 window.modifierClient = async function(clientId){
 const client = clientsCache.find(c=>c.id===clientId);
 if(!client) return;
