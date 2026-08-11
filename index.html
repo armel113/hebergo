@@ -983,6 +983,12 @@ document.getElementById('payPreview').textContent='0 FCFA';
 extendBox.checked = false;
 toast('Paiement de '+amount.toLocaleString('fr-FR')+' FCFA confirmé');
 };
+// Formate un montant en FCFA avec des espaces normaux comme séparateurs de
+// milliers (toLocaleString('fr-FR') utilise un espace fine insécable que la
+// police par défaut des PDF ne sait pas afficher, ce qui produisait des "/").
+function formatMontantPdf(n){
+return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
 // Génère et télécharge un reçu PDF pour un paiement (nouveau ou passé, via
 // l'historique). Nécessite la librairie jsPDF chargée dans <head>.
 function genererRecuPDF(data){
@@ -1019,7 +1025,7 @@ pdf.line(marge, y, 190, y);
 y += 12;
 pdf.setFont('helvetica', 'bold');
 pdf.setFontSize(16);
-pdf.text('Montant payé : ' + data.montant.toLocaleString('fr-FR') + ' FCFA', marge, y);
+pdf.text('Montant payé : ' + formatMontantPdf(data.montant) + ' FCFA', marge, y);
 y += 20;
 pdf.setFont('helvetica', 'normal');
 pdf.setFontSize(9);
