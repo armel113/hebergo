@@ -78,7 +78,8 @@ p.page-sub{font-size:14.5px;color:var(--ink-soft);margin:0 0 18px;}
 .checkbox-row{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink-soft);font-weight:600;margin:2px 0 14px;}
 .checkbox-row input{width:16px;height:16px;}
 .room-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;}
-.room{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:17px;border:none;cursor:pointer;color:var(--teal-deep);gap:2px;}
+.room{aspect-ratio:1;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:17px;border:none;cursor:pointer;color:var(--teal-deep);gap:2px;position:relative;}
+.note-dot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--coral);}
 .room.libre{background:var(--teal-tint);color:var(--teal-deep);}
 .room.occupee{background:var(--coral-tint);color:var(--coral);}
 .room.nettoyage{background:var(--amber-tint);color:var(--amber);}
@@ -94,10 +95,10 @@ p.page-sub{font-size:14.5px;color:var(--ink-soft);margin:0 0 18px;}
 .about-panel a{color:#fff;font-weight:700;text-decoration:none;}
 label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin:14px 0 6px;}
 label:first-child{margin-top:0;}
-input[type=text],input[type=tel],input[type=number],input[type=email],input[type=password],select.field{
+input[type=text],input[type=tel],input[type=number],input[type=email],input[type=password],select.field,textarea{
 width:100%;border:1px solid var(--line);background:var(--paper);border-radius:var(--radius-sm);padding:11px 12px;font-size:16px;font-family:'Manrope';color:var(--ink);
 }
-input:focus,select.field:focus{outline:2px solid var(--teal);outline-offset:1px;}
+input:focus,select.field:focus,textarea:focus{outline:2px solid var(--teal);outline-offset:1px;}
 .pill-choice{display:flex;gap:8px;}
 .pill-choice .pill{flex:1;border:1px solid var(--line);background:var(--paper);border-radius:var(--radius-sm);padding:10px;text-align:center;font-size:14.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;}
 .pill-choice .pill.sel{background:var(--teal);border-color:var(--teal);color:#fff;}
@@ -340,7 +341,9 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="status-opt" data-s="hors_service"><span>Hors service</span><span class="sw" style="background:var(--slate)"></span></div>
 <label style="margin-top:16px;">Tarif par nuit (FCFA)</label>
 <input type="number" id="modalRoomTarif" placeholder="15000" min="0" max="5000000">
-<button class="btn-primary" onclick="enregistrerTarifChambre()">Enregistrer le tarif</button>
+<label>Note interne (visible par le personnel)</label>
+<textarea id="modalRoomNote" rows="2" maxlength="200" placeholder="Ex. climatiseur en panne, technicien prévu jeudi…" style="resize:vertical;font-family:'Manrope';"></textarea>
+<button class="btn-primary" onclick="enregistrerTarifChambre()">Enregistrer</button>
 <button class="btn-ghost" onclick="closeModal()">Fermer</button>
 </div>
 </div>
@@ -1036,7 +1039,9 @@ const grid = document.getElementById('roomGrid');
 grid.innerHTML = roomsCache.map(r=>{
 const hasNum = typeof r.numero === 'number' && !isNaN(r.numero);
 const label = hasNum ? r.numero : ('#'+r.id.slice(0,5));
-return `<button class="room ${r.statut}" title="ID: ${r.id}" onclick="openRoomModal('${r.id}', ${hasNum ? r.numero : "'"+label+"'"})">${label}</button>`;
+const aUneNote = r.note && r.note.trim().length > 0;
+const titre = aUneNote ? escapeHtml(r.note) : ('Chambre ' + label);
+return `<button class="room ${r.statut}" title="${titre}" onclick="openRoomModal('${r.id}', ${hasNum ? r.numero : "'"+label+"'"})">${label}${aUneNote ? '<span class="note-dot"></span>' : ''}</button>`;
 }).join('');
 }
 let activeRoomModalId = null, activeRoomModalNum = null;
@@ -1045,15 +1050,17 @@ activeRoomModalId = id; activeRoomModalNum = num;
 document.getElementById('modalRoomTitle').textContent = 'Chambre ' + num;
 const room = roomsCache.find(r=>r.id===id);
 document.getElementById('modalRoomTarif').value = room && room.tarif ? room.tarif : '';
+document.getElementById('modalRoomNote').value = room && room.note ? room.note : '';
 document.getElementById('roomModal').classList.add('show');
 };
 window.closeModal = function(){ document.getElementById('roomModal').classList.remove('show'); };
 window.enregistrerTarifChambre = async function(){
 const tarif = parseInt(document.getElementById('modalRoomTarif').value) || 0;
+const note = document.getElementById('modalRoomNote').value.trim().slice(0, 200);
 if(!activeRoomModalId) return;
 try{
-await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', activeRoomModalId), { tarif });
-toast('Tarif enregistré pour la chambre '+activeRoomModalNum);
+await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', activeRoomModalId), { tarif, note });
+toast('Chambre '+activeRoomModalNum+' mise à jour');
 closeModal();
 }catch(err){
 toast('Erreur : ' + err.message);
