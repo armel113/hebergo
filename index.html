@@ -280,6 +280,14 @@ nav.tabbar svg{width:20px;height:20px;}
 <button class="btn-ghost" onclick="closeModal()">Fermer</button>
 </div>
 </div>
+<div class="modal-wrap" id="confirmModal">
+<div class="modal">
+<h3 id="confirmModalTitle">Confirmer</h3>
+<p class="sub" id="confirmModalMsg"></p>
+<button class="btn-primary" style="background:var(--coral);" id="confirmModalOk">Confirmer</button>
+<button class="btn-ghost" onclick="closeConfirmModal()">Annuler</button>
+</div>
+</div>
 <nav class="tabbar">
 <button class="tab-btn active" data-screen="accueil">
 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
@@ -703,6 +711,18 @@ document.getElementById('modalRoomTitle').textContent = 'Chambre ' + num;
 document.getElementById('roomModal').classList.add('show');
 };
 window.closeModal = function(){ document.getElementById('roomModal').classList.remove('show'); };
+function showConfirm(message, onConfirm){
+document.getElementById('confirmModalMsg').textContent = message;
+const okBtn = document.getElementById('confirmModalOk');
+const newOkBtn = okBtn.cloneNode(true);
+okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+newOkBtn.addEventListener('click', ()=>{
+document.getElementById('confirmModal').classList.remove('show');
+onConfirm();
+});
+document.getElementById('confirmModal').classList.add('show');
+}
+window.closeConfirmModal = function(){ document.getElementById('confirmModal').classList.remove('show'); };
 document.querySelectorAll('.status-opt').forEach(opt=>{
 opt.addEventListener('click', async ()=>{
 const s = opt.dataset.s;
@@ -947,17 +967,19 @@ const statutLbl = e.actif ? 'Actif' : 'En pause';
 const btnLbl = e.actif ? 'Mettre en pause' : 'Réactiver';
 const nomEchap = e.nom.replace(/'/g,"\\'");
 const supprimerBtn = !e.actif
-? `<button class="btn-mini" style="color:var(--coral);border-color:var(--coral);" onclick="supprimerEtablissement('${e.id}', '${nomEchap}')">Supprimer</button>`
+? `<button class="btn-mini" style="margin-left:0;color:var(--coral);border-color:var(--coral);" onclick="supprimerEtablissement('${e.id}', '${nomEchap}')">Supprimer</button>`
 : '';
 return `
-<div class="tx-item">
+<div class="tx-item" style="align-items:flex-start;">
 <div class="num">${e.nom.slice(0,1).toUpperCase()}</div>
 <div class="info">
 <p class="name">${e.nom}</p>
 <p class="meta">${statutLbl}</p>
 </div>
-<button class="btn-mini" onclick="toggleEtablissementActif('${e.id}', ${e.actif})">${btnLbl}</button>
+<div style="display:flex;flex-direction:column;gap:6px;margin-left:auto;flex-shrink:0;">
+<button class="btn-mini" style="margin-left:0;" onclick="toggleEtablissementActif('${e.id}', ${e.actif})">${btnLbl}</button>
 ${supprimerBtn}
+</div>
 </div>
 `;
 }).join('') : '<div class="empty">Aucun établissement pour le moment</div>';
@@ -976,8 +998,7 @@ toast('Erreur : ' + err.message);
 }
 };
 window.supprimerEtablissement = async function(etabId, nom){
-const ok = confirm('Supprimer définitivement "'+nom+'" et toutes ses données (chambres, clients, paiements, réservations) ? Cette action est irréversible.');
-if(!ok) return;
+showConfirm('Supprimer définitivement "'+nom+'" et toutes ses données (chambres, clients, paiements, réservations) ? Cette action est irréversible.', async ()=>{
 try{
 const sousCollections = ['chambres', 'clients', 'transactions', 'reservations'];
 for(const sub of sousCollections){
@@ -1002,6 +1023,7 @@ await chargerListeEtablissements();
 }catch(err){
 toast('Erreur : ' + err.message);
 }
+});
 };
 document.querySelectorAll('#linkRole .pill').forEach(p=>{
 p.addEventListener('click', ()=>{
