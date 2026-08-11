@@ -391,11 +391,15 @@ async function resolveEstablishment(uid){
 try{
 const userSnap = await getDoc(doc(db, 'utilisateurs', uid));
 if(!userSnap.exists()){
+document.getElementById('btnAdminPlateforme').classList.add('hidden');
+document.getElementById('btnEquipe').classList.add('hidden');
 toast('Ton compte n\'est rattaché à aucun établissement.');
 return;
 }
 currentEtabId = userSnap.data().etablissementId;
 currentUserRole = userSnap.data().role || null;
+document.getElementById('btnAdminPlateforme').classList.add('hidden');
+document.getElementById('btnEquipe').classList.add('hidden');
 if(currentUserRole==='super_admin'){
 document.getElementById('btnAdminPlateforme').classList.remove('hidden');
 }
