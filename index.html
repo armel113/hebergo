@@ -663,7 +663,7 @@ return `
 </div>
 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
 <div class="amt">${(t.montant||0).toLocaleString('fr-FR')} FCFA</div>
-<button class="btn-mini btn-recu" style="margin-left:0;padding:4px 8px;font-size:10px;" data-montant="${t.montant||0}" data-mode="${escapeHtml(t.mode||'')}" data-chambre="${escapeHtml(String(t.numeroChambre??''))}" data-client="${escapeHtml(t.client||'')}" data-date="${dateIso}">Reçu</button>
+<button class="btn-mini btn-recu" style="margin-left:0;padding:4px 8px;font-size:10px;" data-montant="${t.montant||0}" data-mode="${escapeHtml(t.mode||'')}" data-chambre="${escapeHtml(String(t.numeroChambre??''))}" data-client="${escapeHtml(t.client||'')}" data-date="${dateIso}" data-ref="${escapeHtml(t.id||'')}">Reçu</button>
 </div>
 </div>
 `;
@@ -675,7 +675,8 @@ date: new Date(btn.dataset.date),
 chambre: btn.dataset.chambre,
 client: btn.dataset.client,
 mode: btn.dataset.mode,
-montant: parseInt(btn.dataset.montant)||0
+montant: parseInt(btn.dataset.montant)||0,
+reference: btn.dataset.ref
 }));
 });
 }
@@ -969,7 +970,7 @@ if(paidToday>0 && !extendBox.checked){
 toast('Cette chambre a déjà un paiement aujourd\'hui. Coche "Prolongation de séjour" pour confirmer un nouveau paiement.');
 return;
 }
-await addDoc(collection(db, 'etablissements', currentEtabId, 'transactions'), {
+const txRef = await addDoc(collection(db, 'etablissements', currentEtabId, 'transactions'), {
 montant: amount, mode, chambreId: roomSel.value,
 numeroChambre: roomSel.selectedOptions[0].dataset.num,
 client: roomSel.selectedOptions[0].dataset.client || '',
@@ -984,7 +985,8 @@ mode,
 montant: amount,
 nuits: roomSel.selectedOptions[0].dataset.nuits || '',
 dateArrivee: roomSel.selectedOptions[0].dataset.checkin || '',
-dateDepart: roomSel.selectedOptions[0].dataset.depart || ''
+dateDepart: roomSel.selectedOptions[0].dataset.depart || '',
+reference: txRef.id
 });
 document.getElementById('payAmount').value='';
 document.getElementById('payPreview').textContent='0 FCFA';
@@ -997,6 +999,29 @@ toast('Paiement de '+amount.toLocaleString('fr-FR')+' FCFA confirmé');
 function formatMontantPdf(n){
 return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
+// Dessine un filigrane répété en fond (nom de l'établissement, en diagonale
+// et en transparence) pour rendre plus difficile la fabrication d'un faux
+// reçu crédible en imprimant/modifiant une capture d'écran.
+function ajouterFiligrane(pdf, texte){
+try{
+const pageWidth = pdf.internal.pageSize.getWidth();
+const pageHeight = pdf.internal.pageSize.getHeight();
+pdf.saveGraphicsState();
+pdf.setGState(new pdf.GState({opacity: 0.07}));
+pdf.setTextColor(15, 110, 86);
+pdf.setFont('helvetica', 'bold');
+pdf.setFontSize(24);
+for(let y = 55; y < pageHeight; y += 32){
+for(let x = -15; x < pageWidth + 40; x += 85){
+pdf.text(texte.toUpperCase(), x, y, { angle: 30 });
+}
+}
+pdf.restoreGraphicsState();
+}catch(e){
+// Si le plugin GState n'est pas disponible pour une raison quelconque,
+// on continue sans filigrane plutôt que de bloquer tout le reçu.
+}
+}
 // Génère et télécharge un reçu PDF pour un paiement (nouveau ou passé, via
 // l'historique). Nécessite la librairie jsPDF chargée dans <head>.
 function genererRecuPDF(data){
@@ -1006,6 +1031,7 @@ const pdf = new jsPDF();
 const pageWidth = pdf.internal.pageSize.getWidth();
 const marge = 20;
 const dateStr = data.date.toLocaleString('fr-FR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+ajouterFiligrane(pdf, data.etabNom);
 // Bandeau d'en-tête (couleur "teal" de l'app)
 pdf.setFillColor(15, 110, 86);
 pdf.rect(0, 0, pageWidth, 38, 'F');
@@ -1051,6 +1077,10 @@ pdf.setTextColor(140, 140, 140);
 pdf.setFont('helvetica', 'normal');
 pdf.setFontSize(9);
 pdf.text('Reçu généré automatiquement par Hébergo.', marge, y);
+if(data.reference){
+y += 6;
+pdf.text('Réf. paiement : ' + data.reference.slice(0, 12).toUpperCase(), marge, y);
+}
 const dateFichier = data.date.toISOString().slice(0,10);
 pdf.save('recu-chambre'+(data.chambre||'')+'-'+dateFichier+'.pdf');
 }catch(err){
