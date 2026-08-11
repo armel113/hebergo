@@ -154,6 +154,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <p class="estab">Bonjour<br><b id="estabName">—</b></p>
 </div>
 <div style="display:flex;align-items:center;gap:14px;">
+<button class="logout hidden" id="btnStats" onclick="openStats()">Stats</button>
 <button class="logout hidden" id="btnEquipe" onclick="openEquipe()">Équipe</button>
 <button class="logout hidden" id="btnAdminPlateforme" onclick="openAdminPlateforme()">Plateforme</button>
 <button class="logout" onclick="handleLogout()">Déconnexion</button>
@@ -281,6 +282,25 @@ nav.tabbar svg{width:20px;height:20px;}
 </div>
 <p class="section-lbl">Membres de l'équipe</p>
 <div id="teamList"><div class="empty">Chargement…</div></div>
+</section>
+<section class="screen" id="screen-stats">
+<p class="page-sub" style="cursor:pointer;margin-bottom:10px;" onclick="document.querySelector('.tab-btn[data-screen=accueil]').click()">← Retour</p>
+<h1 class="page-title">Statistiques</h1>
+<p class="page-sub">Occupation et revenus de ton établissement</p>
+<div class="stat-row">
+<div class="stat"><p class="lbl">Taux d'occupation</p><p class="val" id="statsOccupation">-<small>%</small></p></div>
+<div class="stat"><p class="lbl">Chambres occupées</p><p class="val" id="statsChambresOcc">-<small>/0</small></p></div>
+</div>
+<p class="section-lbl">Revenus encaissés</p>
+<div class="stat-row">
+<div class="stat"><p class="lbl">Aujourd'hui</p><p class="val" id="statsRevenuJour">-<small>FCFA</small></p></div>
+<div class="stat"><p class="lbl">7 derniers jours</p><p class="val" id="statsRevenuSemaine">-<small>FCFA</small></p></div>
+</div>
+<div class="stat-row">
+<div class="stat"><p class="lbl">Ce mois-ci</p><p class="val" id="statsRevenuMois">-<small>FCFA</small></p></div>
+<div class="stat"><p class="lbl">Paiements ce mois</p><p class="val" id="statsNbPaiementsMois">-</p></div>
+</div>
+<p class="page-sub" style="margin-top:18px;">Les revenus sont calculés à partir des paiements enregistrés dans Caisse.</p>
 </section>
 </main>
 <div class="modal-wrap" id="roomModal">
@@ -426,6 +446,7 @@ const userSnap = await getDoc(doc(db, 'utilisateurs', uid));
 if(!userSnap.exists()){
 document.getElementById('btnAdminPlateforme').classList.add('hidden');
 document.getElementById('btnEquipe').classList.add('hidden');
+document.getElementById('btnStats').classList.add('hidden');
 toast('Ton compte n\'est rattaché à aucun établissement.');
 return;
 }
@@ -433,11 +454,13 @@ currentEtabId = userSnap.data().etablissementId;
 currentUserRole = userSnap.data().role || null;
 document.getElementById('btnAdminPlateforme').classList.add('hidden');
 document.getElementById('btnEquipe').classList.add('hidden');
+document.getElementById('btnStats').classList.add('hidden');
 if(currentUserRole==='super_admin'){
 document.getElementById('btnAdminPlateforme').classList.remove('hidden');
 }
 if(currentUserRole==='admin' || currentUserRole==='super_admin'){
 document.getElementById('btnEquipe').classList.remove('hidden');
+document.getElementById('btnStats').classList.remove('hidden');
 }
 const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
 document.getElementById('estabName').textContent = etabSnap.exists() ? etabSnap.data().nom : currentEtabId;
@@ -494,6 +517,41 @@ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
 document.getElementById('screen-equipe').classList.add('active');
 await chargerEquipe();
 };
+window.openStats = async function(){
+if(currentUserRole!=='admin' && currentUserRole!=='super_admin'){ toast('Accès réservé.'); return; }
+document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+document.getElementById('screen-stats').classList.add('active');
+await chargerStats();
+};
+async function chargerStats(){
+if(!currentEtabId) return;
+try{
+// Occupation (à partir des chambres déjà en cache, pas besoin de requête)
+const occ = roomsCache.filter(r=>r.statut==='occupee').length;
+const total = roomsCache.length;
+document.getElementById('statsChambresOcc').innerHTML = occ + '<small>/'+total+'</small>';
+document.getElementById('statsOccupation').innerHTML = (total>0 ? Math.round(occ/total*100) : 0) + '<small>%</small>';
+// Revenus : trois plages de dates calculées côté client
+const now = new Date();
+const debutJour = new Date(now); debutJour.setHours(0,0,0,0);
+const debutSemaine = new Date(now.getTime() - 6*24*60*60*1000); debutSemaine.setHours(0,0,0,0);
+const debutMois = new Date(now.getFullYear(), now.getMonth(), 1);
+const txRef = collection(db, 'etablissements', currentEtabId, 'transactions');
+const [snapJour, snapSemaine, snapMois] = await Promise.all([
+getDocs(query(txRef, where('date', '>=', Timestamp.fromDate(debutJour)))),
+getDocs(query(txRef, where('date', '>=', Timestamp.fromDate(debutSemaine)))),
+getDocs(query(txRef, where('date', '>=', Timestamp.fromDate(debutMois))))
+]);
+const total_ = snap => snap.docs.reduce((s,d)=>s+(d.data().montant||0), 0);
+document.getElementById('statsRevenuJour').innerHTML = total_(snapJour).toLocaleString('fr-FR') + '<small>FCFA</small>';
+document.getElementById('statsRevenuSemaine').innerHTML = total_(snapSemaine).toLocaleString('fr-FR') + '<small>FCFA</small>';
+document.getElementById('statsRevenuMois').innerHTML = total_(snapMois).toLocaleString('fr-FR') + '<small>FCFA</small>';
+document.getElementById('statsNbPaiementsMois').textContent = snapMois.size;
+}catch(err){
+toast('Erreur de chargement des statistiques : ' + err.message);
+}
+}
 async function chargerEquipe(){
 const el = document.getElementById('teamList');
 if(!el || !currentEtabId) return;
