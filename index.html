@@ -13,6 +13,7 @@
 --teal:#0f6e56; --teal-deep:#0a4f3e; --teal-tint:#e1f0ea;
 --coral:#c9522b; --coral-tint:#fbe9e1;
 --amber:#b8791a; --amber-tint:#f7ecd8;
+--slate:#5a6b72; --slate-tint:#e6eaec;
 --radius-lg:20px; --radius-md:14px; --radius-sm:9px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -81,6 +82,7 @@ p.page-sub{font-size:14.5px;color:var(--ink-soft);margin:0 0 18px;}
 .room.libre{background:var(--teal-tint);color:var(--teal-deep);}
 .room.occupee{background:var(--coral-tint);color:var(--coral);}
 .room.nettoyage{background:var(--amber-tint);color:var(--amber);}
+.room.hors_service{background:var(--slate-tint);color:var(--slate);}
 .legend{display:flex;gap:14px;margin-top:16px;font-size:13px;color:var(--ink-soft);flex-wrap:wrap;}
 .legend i{width:8px;height:8px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:middle;}
 .card-form{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);padding:18px;}
@@ -197,6 +199,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <span><i style="background:var(--teal)"></i>Libre</span>
 <span><i style="background:var(--coral)"></i>Occupée</span>
 <span><i style="background:var(--amber)"></i>À nettoyer</span>
+<span><i style="background:var(--slate)"></i>Hors service</span>
 </div>
 <button class="btn-ghost" style="margin-top:16px;" onclick="definirTarifGlobal()">Régler le même tarif pour toutes les chambres</button>
 </section>
@@ -333,6 +336,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="status-opt" data-s="libre"><span>Libre</span><span class="sw" style="background:var(--teal)"></span></div>
 <div class="status-opt" data-s="occupee"><span>Occupée</span><span class="sw" style="background:var(--coral)"></span></div>
 <div class="status-opt" data-s="nettoyage"><span>À nettoyer</span><span class="sw" style="background:var(--amber)"></span></div>
+<div class="status-opt" data-s="hors_service"><span>Hors service</span><span class="sw" style="background:var(--slate)"></span></div>
 <label style="margin-top:16px;">Tarif par nuit (FCFA)</label>
 <input type="number" id="modalRoomTarif" placeholder="15000" min="0" max="5000000">
 <button class="btn-primary" onclick="enregistrerTarifChambre()">Enregistrer le tarif</button>
