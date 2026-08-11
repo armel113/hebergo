@@ -945,6 +945,10 @@ if(listEl){
 listEl.innerHTML = etabs.length ? etabs.map(e=>{
 const statutLbl = e.actif ? 'Actif' : 'En pause';
 const btnLbl = e.actif ? 'Mettre en pause' : 'Réactiver';
+const nomEchap = e.nom.replace(/'/g,"\\'");
+const supprimerBtn = !e.actif
+? `<button class="btn-mini" style="color:var(--coral);border-color:var(--coral);" onclick="supprimerEtablissement('${e.id}', '${nomEchap}')">Supprimer</button>`
+: '';
 return `
 <div class="tx-item">
 <div class="num">${e.nom.slice(0,1).toUpperCase()}</div>
@@ -953,6 +957,7 @@ return `
 <p class="meta">${statutLbl}</p>
 </div>
 <button class="btn-mini" onclick="toggleEtablissementActif('${e.id}', ${e.actif})">${btnLbl}</button>
+${supprimerBtn}
 </div>
 `;
 }).join('') : '<div class="empty">Aucun établissement pour le moment</div>';
@@ -965,6 +970,34 @@ window.toggleEtablissementActif = async function(etabId, actuellementActif){
 try{
 await updateDoc(doc(db, 'etablissements', etabId), { actif: !actuellementActif });
 toast(actuellementActif ? 'Établissement mis en pause' : 'Établissement réactivé');
+await chargerListeEtablissements();
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+};
+window.supprimerEtablissement = async function(etabId, nom){
+const ok = confirm('Supprimer définitivement "'+nom+'" et toutes ses données (chambres, clients, paiements, réservations) ? Cette action est irréversible.');
+if(!ok) return;
+try{
+const sousCollections = ['chambres', 'clients', 'transactions', 'reservations'];
+for(const sub of sousCollections){
+const snap = await getDocs(collection(db, 'etablissements', etabId, sub));
+let batch = writeBatch(db);
+let count = 0;
+for(const d of snap.docs){
+batch.delete(d.ref);
+count++;
+if(count % 400 === 0){ await batch.commit(); batch = writeBatch(db); }
+}
+await batch.commit();
+}
+const membresSnap = await getDocs(collection(db, 'etablissements', etabId, 'membres'));
+for(const m of membresSnap.docs){
+await deleteDoc(doc(db, 'utilisateurs', m.id));
+await deleteDoc(m.ref);
+}
+await deleteDoc(doc(db, 'etablissements', etabId));
+toast('"'+nom+'" supprimé définitivement.');
 await chargerListeEtablissements();
 }catch(err){
 toast('Erreur : ' + err.message);
