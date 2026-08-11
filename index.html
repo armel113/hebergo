@@ -169,7 +169,7 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="mark">H</div>
 <p class="estab">Bonjour<br><b id="estabName">—</b></p>
 </div>
-<div style="display:flex;align-items:center;gap:14px;">
+<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;max-width:56%;">
 <button class="logout hidden" id="btnStats" onclick="openStats()">Stats</button>
 <button class="logout hidden" id="btnEquipe" onclick="openEquipe()">Équipe</button>
 <button class="logout hidden" id="btnAdminPlateforme" onclick="openAdminPlateforme()">Plateforme</button>
@@ -635,7 +635,14 @@ toast('Erreur de chargement des statistiques : ' + err.message);
 }
 // --- Export CSV ---
 function echapperCsv(valeur){
-const str = String(valeur ?? '');
+let str = String(valeur ?? '');
+// Neutralise l'injection de formule CSV/Excel : si la valeur commence par
+// un caractère qu'Excel/Sheets peut interpréter comme le début d'une
+// formule (=, +, -, @), on la préfixe d'une apostrophe pour forcer
+// l'affichage en texte brut plutôt que d'exécuter quoi que ce soit.
+if(/^[=+\-@]/.test(str)){
+str = "'" + str;
+}
 return /[",\n;]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
 }
 function telechargerCSV(nomFichier, lignes){
