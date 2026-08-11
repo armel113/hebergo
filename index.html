@@ -1239,7 +1239,10 @@ html += `
 <p class="name">${escapeHtml(r.nom)}</p>
 <p class="meta">${r.nuits} nuit${r.nuits>1?'s':''}${r.telephone ? ' · '+escapeHtml(r.telephone) : ''}</p>
 </div>
-<button class="btn-mini btn-convert-resa" data-id="${escapeHtml(r.id)}" data-nom="${escapeHtml(r.nom)}" data-tel="${escapeHtml(r.telephone||'')}" data-nuits="${r.nuits}">Check-in</button>
+<div style="display:flex;flex-direction:column;gap:6px;margin-left:auto;flex-shrink:0;">
+<button class="btn-mini btn-convert-resa" style="margin-left:0;" data-id="${escapeHtml(r.id)}" data-nom="${escapeHtml(r.nom)}" data-tel="${escapeHtml(r.telephone||'')}" data-nuits="${r.nuits}">Check-in</button>
+<button class="btn-mini btn-annuler-resa" style="margin-left:0;color:var(--coral);border-color:var(--coral);" data-id="${escapeHtml(r.id)}" data-nom="${escapeHtml(r.nom)}">Annuler</button>
+</div>
 </div>
 `;
 });
@@ -1247,7 +1250,20 @@ el.innerHTML = html;
 el.querySelectorAll('.btn-convert-resa').forEach(btn=>{
 btn.addEventListener('click', ()=> convertReservation(btn.dataset.id, btn.dataset.nom, btn.dataset.tel, parseInt(btn.dataset.nuits)));
 });
+el.querySelectorAll('.btn-annuler-resa').forEach(btn=>{
+btn.addEventListener('click', ()=> annulerReservation(btn.dataset.id, btn.dataset.nom));
+});
 }
+window.annulerReservation = function(resId, nom){
+showConfirm('Annuler la réservation de "'+nom+'" ? Elle disparaîtra de la liste des réservations à venir.', async ()=>{
+try{
+await updateDoc(doc(db, 'etablissements', currentEtabId, 'reservations', resId), { statut: 'annulee' });
+toast('Réservation annulée');
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+});
+};
 window.addReservation = async function(){
 const name = document.getElementById('resName').value.trim();
 const phone = document.getElementById('resPhone').value.trim();
@@ -1358,6 +1374,28 @@ toast('Paiement de '+amount.toLocaleString('fr-FR')+' FCFA confirmé');
 function formatMontantPdf(n){
 return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 }
+// Propose le partage direct du PDF (WhatsApp, SMS, email...) via le menu de
+// partage natif du téléphone quand c'est possible ; sinon, retombe sur un
+// téléchargement classique. Si l'utilisateur annule volontairement le
+// partage, on ne force pas un téléchargement à la place.
+async function partagerOuTelechargerPDF(pdf, nomFichier){
+try{
+const blob = pdf.output('blob');
+const file = new File([blob], nomFichier, { type: 'application/pdf' });
+if(navigator.canShare && navigator.canShare({ files: [file] })){
+try{
+await navigator.share({ files: [file], title: nomFichier });
+return;
+}catch(e){
+if(e && e.name === 'AbortError') return;
+}
+}
+}catch(e){
+// si la génération du blob ou canShare échoue pour une raison quelconque,
+// on retombe simplement sur le téléchargement classique ci-dessous.
+}
+pdf.save(nomFichier);
+}
 // Dessine un filigrane répété en fond (nom de l'établissement, en diagonale
 // et en transparence) pour rendre plus difficile la fabrication d'un faux
 // reçu crédible en imprimant/modifiant une capture d'écran.
@@ -1441,7 +1479,7 @@ pdf.setFontSize(16);
 const montantTxt = formatMontantPdf(cashToday) + ' FCFA';
 const montantWidth = pdf.getTextWidth(montantTxt);
 pdf.text(montantTxt, pageWidth - marge - 8 - montantWidth, y + 14);
-pdf.save('rapport-jour-' + aujourdhui.toISOString().slice(0,10) + '.pdf');
+partagerOuTelechargerPDF(pdf, 'rapport-jour-' + aujourdhui.toISOString().slice(0,10) + '.pdf');
 }catch(err){
 toast('Erreur lors de la génération du rapport : ' + err.message);
 }
@@ -1526,7 +1564,7 @@ y += 6;
 pdf.text('Réf. paiement : ' + data.reference.slice(0, 12).toUpperCase(), marge, y);
 }
 const dateFichier = data.date.toISOString().slice(0,10);
-pdf.save('recu-chambre'+(data.chambre||'')+'-'+dateFichier+'.pdf');
+partagerOuTelechargerPDF(pdf, 'recu-chambre'+(data.chambre||'')+'-'+dateFichier+'.pdf');
 }catch(err){
 toast('Erreur lors de la génération du reçu : ' + err.message);
 }
