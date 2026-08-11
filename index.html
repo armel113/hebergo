@@ -1007,27 +1007,35 @@ statsEl.innerHTML = `
 }
 const listEl = document.getElementById('etabList');
 if(listEl){
+function escapeHtml(str){
+return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 listEl.innerHTML = etabs.length ? etabs.map(e=>{
 const statutLbl = e.actif ? 'Actif' : 'En pause';
 const btnLbl = e.actif ? 'Mettre en pause' : 'Réactiver';
-const nomEchap = e.nom.replace(/'/g,"\\'");
 const supprimerBtn = !e.actif
-? `<button class="btn-mini" style="margin-left:0;color:var(--coral);border-color:var(--coral);" onclick="supprimerEtablissement('${e.id}', '${nomEchap}')">Supprimer</button>`
+? `<button class="btn-mini btn-supprimer-etab" style="margin-left:0;color:var(--coral);border-color:var(--coral);" data-id="${escapeHtml(e.id)}" data-nom="${escapeHtml(e.nom)}">Supprimer</button>`
 : '';
 return `
 <div class="tx-item" style="align-items:flex-start;">
-<div class="num">${e.nom.slice(0,1).toUpperCase()}</div>
+<div class="num">${escapeHtml(e.nom.slice(0,1).toUpperCase())}</div>
 <div class="info">
-<p class="name">${e.nom}</p>
+<p class="name">${escapeHtml(e.nom)}</p>
 <p class="meta">${statutLbl}</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:10px;margin-left:auto;flex-shrink:0;">
-<button class="btn-mini" style="margin-left:0;" onclick="toggleEtablissementActif('${e.id}', ${e.actif})">${btnLbl}</button>
+<button class="btn-mini btn-toggle-etab" style="margin-left:0;" data-id="${escapeHtml(e.id)}" data-actif="${e.actif}">${btnLbl}</button>
 ${supprimerBtn}
 </div>
 </div>
 `;
 }).join('') : '<div class="empty">Aucun établissement pour le moment</div>';
+listEl.querySelectorAll('.btn-toggle-etab').forEach(btn=>{
+btn.addEventListener('click', ()=> toggleEtablissementActif(btn.dataset.id, btn.dataset.actif === 'true'));
+});
+listEl.querySelectorAll('.btn-supprimer-etab').forEach(btn=>{
+btn.addEventListener('click', ()=> supprimerEtablissement(btn.dataset.id, btn.dataset.nom));
+});
 }
 }catch(err){
 toast('Erreur de chargement des établissements : ' + err.message);
