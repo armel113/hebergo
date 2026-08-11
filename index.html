@@ -251,6 +251,8 @@ nav.tabbar svg{width:20px;height:20px;}
 </div>
 <button class="btn-primary" onclick="rattacherCompte()">Créer le compte</button>
 </div>
+<p class="section-lbl">Établissements clients</p>
+<div id="etabList"><div class="empty">Chargement…</div></div>
 </section>
 <section class="screen" id="screen-equipe">
 <p class="page-sub" style="cursor:pointer;margin-bottom:10px;" onclick="document.querySelector('.tab-btn[data-screen=accueil]').click()">← Retour</p>
@@ -408,6 +410,15 @@ document.getElementById('btnEquipe').classList.remove('hidden');
 }
 const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
 document.getElementById('estabName').textContent = etabSnap.exists() ? etabSnap.data().nom : currentEtabId;
+const etabActif = !etabSnap.exists() || etabSnap.data().actif !== false;
+if(!etabActif && currentUserRole!=='super_admin'){
+document.getElementById('mainApp').style.display = 'none';
+document.getElementById('authScreen').style.display = 'flex';
+document.getElementById('authError').style.color = 'var(--coral)';
+document.getElementById('authError').textContent = 'Cet établissement est en pause. Contacte Hébergo pour réactiver ton accès.';
+document.getElementById('authError').style.display = 'block';
+return;
+}
 listenRooms();
 listenTransactionsToday();
 listenTransactionHistory();
@@ -890,7 +901,7 @@ if(nbChambres < 1 || nbChambres > 300){ toast('Nombre de chambres entre 1 et 300
 try{
 const existing = await getDoc(doc(db, 'etablissements', id));
 if(existing.exists()){ toast('Cet identifiant existe déjà, choisis-en un autre'); return; }
-await setDoc(doc(db, 'etablissements', id), { nom: nom });
+await setDoc(doc(db, 'etablissements', id), { nom: nom, actif: true });
 const chambresRef = collection(db, 'etablissements', id, 'chambres');
 let batch = writeBatch(db);
 let count = 0;
@@ -915,14 +926,40 @@ const sel = document.getElementById('linkEtabSelect');
 if(!sel) return;
 try{
 const snap = await getDocs(collection(db, 'etablissements'));
-const etabs = snap.docs.map(d=>({id:d.id, nom: d.data().nom || d.id})).sort((a,b)=>a.nom.localeCompare(b.nom));
+const etabs = snap.docs.map(d=>({id:d.id, nom: d.data().nom || d.id, actif: d.data().actif !== false})).sort((a,b)=>a.nom.localeCompare(b.nom));
 sel.innerHTML = etabs.length
 ? etabs.map(e=>`<option value="${e.id}">${e.nom}</option>`).join('')
 : `<option value="">Aucun établissement</option>`;
+const listEl = document.getElementById('etabList');
+if(listEl){
+listEl.innerHTML = etabs.length ? etabs.map(e=>{
+const statutLbl = e.actif ? 'Actif' : 'En pause';
+const btnLbl = e.actif ? 'Mettre en pause' : 'Réactiver';
+return `
+<div class="tx-item">
+<div class="num">${e.nom.slice(0,1).toUpperCase()}</div>
+<div class="info">
+<p class="name">${e.nom}</p>
+<p class="meta">${statutLbl}</p>
+</div>
+<button class="btn-mini" onclick="toggleEtablissementActif('${e.id}', ${e.actif})">${btnLbl}</button>
+</div>
+`;
+}).join('') : '<div class="empty">Aucun établissement pour le moment</div>';
+}
 }catch(err){
 toast('Erreur de chargement des établissements : ' + err.message);
 }
 }
+window.toggleEtablissementActif = async function(etabId, actuellementActif){
+try{
+await updateDoc(doc(db, 'etablissements', etabId), { actif: !actuellementActif });
+toast(actuellementActif ? 'Établissement mis en pause' : 'Établissement réactivé');
+await chargerListeEtablissements();
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+};
 document.querySelectorAll('#linkRole .pill').forEach(p=>{
 p.addEventListener('click', ()=>{
 document.querySelectorAll('#linkRole .pill').forEach(x=>x.classList.remove('sel'));
