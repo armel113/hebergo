@@ -651,10 +651,35 @@ return `
 <p class="name">${escapeHtml(c.nom||'')}</p>
 <p class="meta">${escapeHtml(c.telephone||'')}${dateStr ? ' · '+dateStr : ''}${c.nuits ? ' · '+c.nuits+' nuit'+(c.nuits>1?'s':'') : ''}</p>
 </div>
+<button class="btn-mini btn-modifier-client" style="margin-left:auto;" data-id="${escapeHtml(c.id||'')}">Modifier</button>
 </div>
 `;
 }).join('');
+el.querySelectorAll('.btn-modifier-client').forEach(btn=>{
+btn.addEventListener('click', ()=> modifierClient(btn.dataset.id));
+});
 }
+window.modifierClient = async function(clientId){
+const client = clientsCache.find(c=>c.id===clientId);
+if(!client) return;
+const nouveauNom = window.prompt('Nom du client :', client.nom || '');
+if(nouveauNom === null) return;
+if(nouveauNom.trim().length < 2){ toast('Nom : 2 caractères minimum'); return; }
+const nouveauTelSaisi = window.prompt('Téléphone (10 chiffres, ou laisse vide) :', client.telephone || '');
+if(nouveauTelSaisi === null) return;
+const telDigits = nouveauTelSaisi.replace(/[^0-9]/g, '');
+if(telDigits && telDigits.length !== 10){ toast('Téléphone : 10 chiffres attendus (ex. 0700000000)'); return; }
+try{
+await updateDoc(doc(db, 'etablissements', currentEtabId, 'clients', clientId), {
+nom: nouveauNom.trim(), telephone: telDigits
+});
+toast('Fiche client mise à jour');
+await chargerClients();
+document.getElementById('clientsSearch').dispatchEvent(new Event('input'));
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+};
 window.filtrerClients = function(){
 const terme = document.getElementById('clientsSearch').value.trim().toLowerCase();
 if(!terme){ renderClientsList(clientsCache); return; }
