@@ -874,8 +874,10 @@ try{
 const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
 const uid = cred.user.uid;
 await signOut(secondaryAuth);
-await setDoc(doc(db, 'utilisateurs', uid), { etablissementId: currentEtabId, role: 'gerant', email: email });
-await setDoc(doc(db, 'etablissements', currentEtabId, 'membres', uid), { role: 'gerant', email: email });
+const batch = writeBatch(db);
+batch.set(doc(db, 'utilisateurs', uid), { etablissementId: currentEtabId, role: 'gerant', email: email });
+batch.set(doc(db, 'etablissements', currentEtabId, 'membres', uid), { role: 'gerant', email: email });
+await batch.commit();
 toast('Compte gérant créé pour '+email);
 document.getElementById('teamEmail').value='';
 document.getElementById('teamPassword').value='';
@@ -1848,8 +1850,10 @@ try{
 const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
 const uid = cred.user.uid;
 await signOut(secondaryAuth);
-await setDoc(doc(db, 'utilisateurs', uid), { etablissementId: etabId, role: role, email: email });
-await setDoc(doc(db, 'etablissements', etabId, 'membres', uid), { role: role, email: email });
+const batch = writeBatch(db);
+batch.set(doc(db, 'utilisateurs', uid), { etablissementId: etabId, role: role, email: email });
+batch.set(doc(db, 'etablissements', etabId, 'membres', uid), { role: role, email: email });
+await batch.commit();
 toast('Compte créé pour '+email+' (rôle '+role+')');
 document.getElementById('linkEmail').value='';
 document.getElementById('linkPassword').value='';
