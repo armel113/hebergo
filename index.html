@@ -286,6 +286,8 @@ nav.tabbar svg{width:20px;height:20px;}
 <input type="text" id="newEtabId" placeholder="hotel-le-palmier" maxlength="60">
 <label>Nombre de chambres</label>
 <input type="number" id="newEtabChambres" placeholder="40" min="1" max="300">
+<label>Période d'essai (jours, laisse vide pour un compte payant direct)</label>
+<input type="number" id="newEtabEssaiJours" placeholder="ex. 14" min="1" max="90">
 <button class="btn-primary" onclick="creerEtablissement()">Créer l'établissement</button>
 </div>
 <p class="section-lbl">Créer un compte pour un établissement</p>
@@ -547,8 +549,9 @@ document.getElementById('btnEquipe').classList.remove('hidden');
 document.getElementById('btnStats').classList.remove('hidden');
 }
 const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
-document.getElementById('estabName').textContent = etabSnap.exists() ? etabSnap.data().nom : currentEtabId;
-const etabActif = !etabSnap.exists() || etabSnap.data().actif !== false;
+const etabData = etabSnap.exists() ? etabSnap.data() : {};
+document.getElementById('estabName').textContent = etabSnap.exists() ? etabData.nom : currentEtabId;
+const etabActif = !etabSnap.exists() || etabData.actif !== false;
 if(!etabActif && currentUserRole!=='super_admin'){
 document.getElementById('mainApp').style.display = 'none';
 document.getElementById('authScreen').style.display = 'flex';
@@ -556,6 +559,19 @@ document.getElementById('authError').style.color = 'var(--coral)';
 document.getElementById('authError').textContent = 'Cet établissement est en pause. Contacte Hébergo pour réactiver ton accès.';
 document.getElementById('authError').style.display = 'block';
 return;
+}
+const essaiExpire = etabData.essai === true && etabData.dateFinEssai && etabData.dateFinEssai.toDate && etabData.dateFinEssai.toDate() < new Date();
+if(essaiExpire && currentUserRole!=='super_admin'){
+document.getElementById('mainApp').style.display = 'none';
+document.getElementById('authScreen').style.display = 'flex';
+document.getElementById('authError').style.color = 'var(--coral)';
+document.getElementById('authError').textContent = 'Ta période d\'essai est terminée. Contacte Hébergo pour activer ton abonnement.';
+document.getElementById('authError').style.display = 'block';
+return;
+}
+if(etabData.essai === true && !essaiExpire){
+const joursRestants = Math.max(0, Math.ceil((etabData.dateFinEssai.toDate() - new Date()) / (24*60*60*1000)));
+toast('Compte d\'essai — ' + joursRestants + ' jour' + (joursRestants>1?'s':'') + ' restant' + (joursRestants>1?'s':''));
 }
 if(currentUserRole==='gerant'){
 const membreSnap = await getDoc(doc(db, 'etablissements', currentEtabId, 'membres', uid));
@@ -1728,13 +1744,19 @@ window.creerEtablissement = async function(){
 const nom = document.getElementById('newEtabNom').value.trim();
 const id = document.getElementById('newEtabId').value.trim();
 const nbChambres = parseInt(document.getElementById('newEtabChambres').value) || 0;
+const essaiJours = parseInt(document.getElementById('newEtabEssaiJours').value) || 0;
 if(!nom || nom.length < 2){ toast('Nom de l\'établissement requis'); return; }
 if(!id || id.length < 2){ toast('Identifiant requis'); return; }
 if(nbChambres < 1 || nbChambres > 300){ toast('Nombre de chambres entre 1 et 300'); return; }
 try{
 const existing = await getDoc(doc(db, 'etablissements', id));
 if(existing.exists()){ toast('Cet identifiant existe déjà, choisis-en un autre'); return; }
-await setDoc(doc(db, 'etablissements', id), { nom: nom, actif: true });
+const etabDoc = { nom: nom, actif: true };
+if(essaiJours > 0){
+etabDoc.essai = true;
+etabDoc.dateFinEssai = Timestamp.fromDate(new Date(Date.now() + essaiJours*24*60*60*1000));
+}
+await setDoc(doc(db, 'etablissements', id), etabDoc);
 const chambresRef = collection(db, 'etablissements', id, 'chambres');
 let batch = writeBatch(db);
 let count = 0;
@@ -1745,21 +1767,33 @@ count++;
 if(count % 400 === 0){ await batch.commit(); batch = writeBatch(db); }
 }
 await batch.commit();
-toast('Établissement "'+nom+'" créé avec '+nbChambres+' chambres');
+toast('Établissement "'+nom+'" créé avec '+nbChambres+' chambres'+(essaiJours>0 ? ' ('+essaiJours+' jours d\'essai)' : ''));
 document.getElementById('newEtabNom').value='';
 document.getElementById('newEtabId').value='';
 document.getElementById('newEtabChambres').value='';
+document.getElementById('newEtabEssaiJours').value='';
 await chargerListeEtablissements();
 }catch(err){
 toast('Erreur : ' + err.message);
 }
+};
+window.validerAbonnement = function(etabId, nom){
+showConfirm('Valider l\'abonnement de "'+nom+'" ? Le compte d\'essai devient un compte payant définitif (plus de date limite).', async ()=>{
+try{
+await updateDoc(doc(db, 'etablissements', etabId), { essai: false });
+toast('Abonnement validé pour '+nom);
+await chargerListeEtablissements();
+}catch(err){
+toast('Erreur : ' + err.message);
+}
+});
 };
 async function chargerListeEtablissements(){
 const sel = document.getElementById('linkEtabSelect');
 if(!sel) return;
 try{
 const snap = await getDocs(collection(db, 'etablissements'));
-const etabs = snap.docs.map(d=>({id:d.id, nom: d.data().nom || d.id, actif: d.data().actif !== false})).sort((a,b)=>a.nom.localeCompare(b.nom));
+const etabs = snap.docs.map(d=>({id:d.id, nom: d.data().nom || d.id, actif: d.data().actif !== false, essai: d.data().essai === true, dateFinEssai: d.data().dateFinEssai || null})).sort((a,b)=>a.nom.localeCompare(b.nom));
 sel.innerHTML = etabs.length
 ? etabs.map(e=>`<option value="${e.id}">${escapeHtml(e.nom)}</option>`).join('')
 : `<option value="">Aucun établissement</option>`;
@@ -1780,15 +1814,26 @@ const btnLbl = e.actif ? 'Mettre en pause' : 'Réactiver';
 const supprimerBtn = !e.actif
 ? `<button class="btn-mini btn-supprimer-etab" style="margin-left:0;color:var(--coral);border-color:var(--coral);" data-id="${escapeHtml(e.id)}" data-nom="${escapeHtml(e.nom)}">Supprimer</button>`
 : '';
+let essaiLbl = '';
+let validerBtn = '';
+if(e.essai === true && e.dateFinEssai && e.dateFinEssai.toDate){
+const finEssai = e.dateFinEssai.toDate();
+const joursRestants = Math.ceil((finEssai - new Date()) / (24*60*60*1000));
+essaiLbl = joursRestants > 0
+? ` · Essai : ${joursRestants} jour${joursRestants>1?'s':''} restant${joursRestants>1?'s':''}`
+: ' · Essai expiré';
+validerBtn = `<button class="btn-mini btn-valider-abo" style="margin-left:0;color:var(--teal-deep);border-color:var(--teal);" data-id="${escapeHtml(e.id)}" data-nom="${escapeHtml(e.nom)}">Valider l'abonnement</button>`;
+}
 return `
 <div class="tx-item" style="align-items:flex-start;">
 <div class="num">${escapeHtml(e.nom.slice(0,1).toUpperCase())}</div>
 <div class="info">
 <p class="name">${escapeHtml(e.nom)}</p>
-<p class="meta">${statutLbl}</p>
+<p class="meta">${statutLbl}${essaiLbl}</p>
 </div>
 <div style="display:flex;flex-direction:column;gap:10px;margin-left:auto;flex-shrink:0;">
 <button class="btn-mini btn-toggle-etab" style="margin-left:0;" data-id="${escapeHtml(e.id)}" data-actif="${e.actif}">${btnLbl}</button>
+${validerBtn}
 ${supprimerBtn}
 </div>
 </div>
@@ -1799,6 +1844,9 @@ btn.addEventListener('click', ()=> toggleEtablissementActif(btn.dataset.id, btn.
 });
 listEl.querySelectorAll('.btn-supprimer-etab').forEach(btn=>{
 btn.addEventListener('click', ()=> supprimerEtablissement(btn.dataset.id, btn.dataset.nom));
+});
+listEl.querySelectorAll('.btn-valider-abo').forEach(btn=>{
+btn.addEventListener('click', ()=> validerAbonnement(btn.dataset.id, btn.dataset.nom));
 });
 }
 }catch(err){
