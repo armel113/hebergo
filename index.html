@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hébergo — Gestion résidence</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAmUlEQVR4nO2XwQ2AIAxFaeNdp9MtdBbZQqaTCfREgrURgqG99B9/mvzHDxoKjtG4zhfn/1X0Aaj3MHoFf4GgdDjNQulwCoGlwd4CjdPnUm9AHWCoGTr34+VN29I8l0u9AQMwgKqvgBN341uk3oABqAM0X8LaX3FJ6g0YgAHYmxC5dUlK0QfQbyCRSAenTKSGZLhzZDtOklzPby8CL2yxMhN5AAAAAElFTkSuQmCC">
@@ -441,6 +441,7 @@ let currentUser = null;
 let currentUserRole = null;
 let currentEtabId = null;
 let unsubRooms = null;
+let timerMinuit = null;
 let unsubTx = null;
 let cashToday = 0;
 function toast(msg){
@@ -508,6 +509,7 @@ if(unsubTx) unsubTx();
 if(unsubTxHistory) unsubTxHistory();
 if(unsubReservations) unsubReservations();
 if(timerInactivite) clearTimeout(timerInactivite);
+if(timerMinuit) clearTimeout(timerMinuit);
 }
 });
 // Déconnexion automatique après un long moment sans activité, pour éviter
@@ -526,6 +528,22 @@ signOut(auth);
 ['click', 'keydown', 'touchstart', 'scroll'].forEach(evt=>{
 document.addEventListener(evt, reinitialiserTimerInactivite, { passive: true });
 });
+// Refuse l'entree dans l'app, affiche la raison et ferme la session : sans cela
+// l'utilisateur restait authentifie derriere un ecran de connexion.
+async function bloquerAcces(message){
+if(unsubRooms){ unsubRooms(); unsubRooms = null; }
+if(unsubTx){ unsubTx(); unsubTx = null; }
+if(unsubTxHistory){ unsubTxHistory(); unsubTxHistory = null; }
+if(unsubReservations){ unsubReservations(); unsubReservations = null; }
+if(timerMinuit){ clearTimeout(timerMinuit); timerMinuit = null; }
+try{ await signOut(auth); }catch(e){}
+document.getElementById('mainApp').style.display = 'none';
+document.getElementById('authScreen').style.display = 'flex';
+const err = document.getElementById('authError');
+err.style.color = 'var(--coral)';
+err.textContent = message;
+err.style.display = 'block';
+}
 async function resolveEstablishment(uid){
 try{
 const userSnap = await getDoc(doc(db, 'utilisateurs', uid));
@@ -550,38 +568,32 @@ document.getElementById('btnStats').classList.remove('hidden');
 }
 const etabSnap = await getDoc(doc(db, 'etablissements', currentEtabId));
 const etabData = etabSnap.exists() ? etabSnap.data() : {};
-document.getElementById('estabName').textContent = etabSnap.exists() ? etabData.nom : currentEtabId;
+document.getElementById('estabName').textContent = (etabSnap.exists() && etabData.nom) ? etabData.nom : currentEtabId;
 const etabActif = !etabSnap.exists() || etabData.actif !== false;
 if(!etabActif && currentUserRole!=='super_admin'){
-document.getElementById('mainApp').style.display = 'none';
-document.getElementById('authScreen').style.display = 'flex';
-document.getElementById('authError').style.color = 'var(--coral)';
-document.getElementById('authError').textContent = 'Cet établissement est en pause. Contacte Hébergo pour réactiver ton accès.';
-document.getElementById('authError').style.display = 'block';
+bloquerAcces('Cet établissement est en pause. Contacte Hébergo pour réactiver ton accès.');
 return;
 }
-const essaiExpire = etabData.essai === true && etabData.dateFinEssai && etabData.dateFinEssai.toDate && etabData.dateFinEssai.toDate() < new Date();
+// Un compte d'essai sans date de fin exploitable est traité comme expiré : les
+// règles Firestore refuseraient de toute façon la moindre écriture.
+const finEssai = (etabData.essai === true && etabData.dateFinEssai && etabData.dateFinEssai.toDate)
+? etabData.dateFinEssai.toDate() : null;
+const essaiExpire = etabData.essai === true && (!finEssai || finEssai < new Date());
 if(essaiExpire && currentUserRole!=='super_admin'){
-document.getElementById('mainApp').style.display = 'none';
-document.getElementById('authScreen').style.display = 'flex';
-document.getElementById('authError').style.color = 'var(--coral)';
-document.getElementById('authError').textContent = 'Ta période d\'essai est terminée. Contacte Hébergo pour activer ton abonnement.';
-document.getElementById('authError').style.display = 'block';
+bloquerAcces(finEssai
+? 'Ta période d\'essai est terminée. Contacte Hébergo pour activer ton abonnement.'
+: 'Ce compte d\'essai n\'a pas de date de fin valable. Contacte Hébergo pour régulariser l\'abonnement.');
 return;
 }
 if(etabData.essai === true && !essaiExpire){
-const joursRestants = Math.max(0, Math.ceil((etabData.dateFinEssai.toDate() - new Date()) / (24*60*60*1000)));
+const joursRestants = Math.max(0, Math.ceil((finEssai - new Date()) / (24*60*60*1000)));
 toast('Compte d\'essai — ' + joursRestants + ' jour' + (joursRestants>1?'s':'') + ' restant' + (joursRestants>1?'s':''));
 }
 if(currentUserRole==='gerant'){
 const membreSnap = await getDoc(doc(db, 'etablissements', currentEtabId, 'membres', uid));
 const membreActif = !membreSnap.exists() || membreSnap.data().actif !== false;
 if(!membreActif){
-document.getElementById('mainApp').style.display = 'none';
-document.getElementById('authScreen').style.display = 'flex';
-document.getElementById('authError').style.color = 'var(--coral)';
-document.getElementById('authError').textContent = 'Ton accès a été suspendu par le propriétaire. Contacte-le pour plus d\'informations.';
-document.getElementById('authError').style.display = 'block';
+bloquerAcces('Ton accès a été suspendu par le propriétaire. Contacte-le pour plus d\'informations.');
 return;
 }
 }
@@ -927,12 +939,26 @@ renderPayOptions();
 toast('Erreur de lecture des chambres : ' + err.message);
 });
 }
+// La reception laisse souvent l'app ouverte en permanence : sans cela, la caisse
+// du jour et les departs restaient bloques sur la date d'ouverture de la session.
+function programmerBasculeMinuit(){
+if(timerMinuit) clearTimeout(timerMinuit);
+const minuit = new Date(); minuit.setHours(24,0,5,0);
+timerMinuit = setTimeout(()=>{
+if(!currentEtabId) return;
+if(unsubTx){ unsubTx(); unsubTx = null; }
+listenTransactionsToday();
+renderAccueil();
+toast('Nouvelle journee : la caisse du jour repart de zero');
+}, minuit - new Date());
+}
 function listenTransactionsToday(){
 if(!currentEtabId) return;
 const start = new Date(); start.setHours(0,0,0,0);
 const startTs = Timestamp.fromDate(start);
 const txRef = collection(db, 'etablissements', currentEtabId, 'transactions');
 const q = query(txRef, where('date', '>=', startTs));
+programmerBasculeMinuit();
 unsubTx = onSnapshot(q, (snap)=>{
 txTodayCache = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(t=>!t.annule);
 cashToday = txTodayCache.reduce((sum, t)=> sum + (t.montant || 0), 0);
