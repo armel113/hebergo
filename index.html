@@ -102,6 +102,7 @@ p.page-sub{font-size:14.5px;color:var(--ink-soft);margin:0 0 18px;}
 .about-panel a{color:#fff;font-weight:700;text-decoration:none;}
 label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin:14px 0 6px;}
 label:first-child{margin-top:0;}
+label:has(+ input:required)::after,label:has(+ select:required)::after{content:" *";color:var(--coral);}
 input[type=text],input[type=tel],input[type=number],input[type=email],input[type=password],input[type=date],select.field,textarea{
 width:100%;border:1px solid var(--line);background:var(--paper);border-radius:var(--radius-sm);padding:11px 12px;font-size:16px;font-family:'Manrope';color:var(--ink);
 }
@@ -144,10 +145,10 @@ nav.tabbar svg{width:20px;height:20px;}
 <h1>Hébergo</h1>
 <p class="sub">Connecte-toi pour gérer ton établissement</p>
 <div class="card-form">
-<label>Email</label>
-<input type="email" id="authEmail" placeholder="toi@exemple.com">
-<label>Mot de passe</label>
-<input type="password" id="authPassword" placeholder="••••••••">
+<label for="authEmail">Email</label>
+<input type="email" id="authEmail" placeholder="toi@exemple.com" required autocomplete="username">
+<label for="authPassword">Mot de passe</label>
+<input type="password" id="authPassword" placeholder="••••••••" required autocomplete="current-password">
 <p id="authError"></p>
 <button class="btn-primary" id="authSubmitBtn" onclick="handleLogin()">Se connecter</button>
 <button class="btn-ghost" onclick="handleForgotPassword()">Mot de passe oublié ?</button>
@@ -225,13 +226,13 @@ nav.tabbar svg{width:20px;height:20px;}
 <h1 class="page-title">Check-in</h1>
 <p class="page-sub">Enregistrer un nouveau client</p>
 <div class="card-form">
-<label>Nom du client</label>
-<input type="text" id="ciName" placeholder="Nom et prénom" maxlength="60">
-<label>Téléphone</label>
+<label for="ciName">Nom du client</label>
+<input type="text" id="ciName" placeholder="Nom et prénom" maxlength="60" required>
+<label for="ciPhone">Téléphone</label>
 <input type="tel" id="ciPhone" placeholder="07 00 00 00 00" maxlength="20" pattern="[0-9+ ]*" inputmode="tel">
-<label>Chambre</label>
-<select class="field" id="ciRoom"></select>
-<label>Nuits</label>
+<label for="ciRoom">Chambre</label>
+<select class="field" id="ciRoom" required></select>
+<label for="ciNights">Nuits</label>
 <input type="number" id="ciNights" value="1" min="1" max="90">
 <button class="btn-primary" id="btnDoCheckin" onclick="doCheckin()">Enregistrer le client</button>
 </div>
@@ -240,13 +241,13 @@ nav.tabbar svg{width:20px;height:20px;}
 <h1 class="page-title">Réservations</h1>
 <p class="page-sub">Noter une arrivée future</p>
 <div class="card-form">
-<label>Nom du client</label>
-<input type="text" id="resName" placeholder="Nom et prénom" maxlength="60">
-<label>Téléphone</label>
+<label for="resName">Nom du client</label>
+<input type="text" id="resName" placeholder="Nom et prénom" maxlength="60" required>
+<label for="resPhone">Téléphone</label>
 <input type="tel" id="resPhone" placeholder="07 00 00 00 00" maxlength="20" pattern="[0-9+ ]*" inputmode="tel">
-<label>Date d'arrivée</label>
-<input type="date" id="resDate">
-<label>Nuits prévues</label>
+<label for="resDate">Date d'arrivée</label>
+<input type="date" id="resDate" required>
+<label for="resNights">Nuits prévues</label>
 <input type="number" id="resNights" value="1" min="1" max="90">
 <button class="btn-primary" id="btnAddReservation" onclick="addReservation()">Enregistrer la réservation</button>
 </div>
@@ -257,11 +258,11 @@ nav.tabbar svg{width:20px;height:20px;}
 <h1 class="page-title">Encaissement</h1>
 <p class="page-sub">Enregistrer un paiement client</p>
 <div class="card-form">
-<label>Chambre / client</label>
-<select class="field" id="payRoom"></select>
+<label for="payRoom">Chambre / client</label>
+<select class="field" id="payRoom" required></select>
 <div id="paidInfo" class="paid-info hidden"></div>
-<label>Montant (FCFA)</label>
-<input type="number" id="payAmount" placeholder="15000" min="0" max="5000000" maxlength="9">
+<label for="payAmount">Montant (FCFA)</label>
+<input type="number" id="payAmount" placeholder="15000" min="0" max="5000000" maxlength="9" step="100" required>
 <label>Mode de paiement</label>
 <div class="pill-choice" id="payMode">
 <div class="pill sel" data-mode="Espèces">Espèces</div>
@@ -280,25 +281,25 @@ nav.tabbar svg{width:20px;height:20px;}
 <h1 class="page-title">Plateforme Hébergo</h1>
 <p class="page-sub">Ajouter un nouvel établissement client</p>
 <div class="card-form">
-<label>Nom de l'établissement</label>
-<input type="text" id="newEtabNom" placeholder="Ex: Hôtel Le Palmier" maxlength="60">
-<label>Identifiant (généré automatiquement)</label>
-<input type="text" id="newEtabId" placeholder="hotel-le-palmier" maxlength="60">
-<label>Nombre de chambres</label>
-<input type="number" id="newEtabChambres" placeholder="40" min="1" max="300">
-<label>Période d'essai (jours, laisse vide pour un compte payant direct)</label>
+<label for="newEtabNom">Nom de l'établissement</label>
+<input type="text" id="newEtabNom" placeholder="Ex: Hôtel Le Palmier" maxlength="60" required>
+<label for="newEtabId">Identifiant (généré automatiquement)</label>
+<input type="text" id="newEtabId" placeholder="hotel-le-palmier" maxlength="60" pattern="[a-z0-9\-]+" required>
+<label for="newEtabChambres">Nombre de chambres</label>
+<input type="number" id="newEtabChambres" placeholder="40" min="1" max="300" required>
+<label for="newEtabEssaiJours">Période d'essai (jours, laisse vide pour un compte payant direct)</label>
 <input type="number" id="newEtabEssaiJours" placeholder="ex. 14" min="1" max="90">
 <button class="btn-primary" onclick="creerEtablissement()">Créer l'établissement</button>
 </div>
 <p class="section-lbl">Créer un compte pour un établissement</p>
 <p class="page-sub" style="margin-top:-10px;">Crée directement le compte de connexion du client, sans passer par Firebase.</p>
 <div class="card-form">
-<label>Email du client</label>
-<input type="email" id="linkEmail" placeholder="proprietaire@exemple.com">
-<label>Mot de passe temporaire</label>
-<input type="text" id="linkPassword" placeholder="Au moins 6 caractères">
-<label>Établissement</label>
-<select class="field" id="linkEtabSelect"></select>
+<label for="linkEmail">Email du client</label>
+<input type="email" id="linkEmail" placeholder="proprietaire@exemple.com" required autocomplete="email">
+<label for="linkPassword">Mot de passe temporaire</label>
+<input type="text" id="linkPassword" placeholder="Au moins 6 caractères" required autocomplete="new-password">
+<label for="linkEtabSelect">Établissement</label>
+<select class="field" id="linkEtabSelect" required></select>
 <p class="page-sub" style="margin:2px 0 0;">Ce compte sera créé avec le rôle Admin (propriétaire). Les comptes gérants se créent depuis "Mon équipe", par le propriétaire lui-même.</p>
 <button class="btn-primary" onclick="rattacherCompte()">Créer le compte propriétaire</button>
 </div>
@@ -311,10 +312,10 @@ nav.tabbar svg{width:20px;height:20px;}
 <h1 class="page-title">Mon équipe</h1>
 <p class="page-sub">Ajouter un gérant pour ton établissement</p>
 <div class="card-form">
-<label>Email du gérant</label>
-<input type="email" id="teamEmail" placeholder="gerant@exemple.com">
-<label>Mot de passe temporaire</label>
-<input type="text" id="teamPassword" placeholder="Au moins 6 caractères">
+<label for="teamEmail">Email du gérant</label>
+<input type="email" id="teamEmail" placeholder="gerant@exemple.com" required autocomplete="email">
+<label for="teamPassword">Mot de passe temporaire</label>
+<input type="text" id="teamPassword" placeholder="Au moins 6 caractères" required autocomplete="new-password">
 <button class="btn-primary" onclick="creerGerant()">Créer le compte gérant</button>
 </div>
 <p class="section-lbl">Membres de l'équipe</p>
@@ -347,6 +348,12 @@ nav.tabbar svg{width:20px;height:20px;}
 <input type="date" id="exportDateFin">
 </div>
 <button class="btn-ghost" style="margin-top:10px;" onclick="exporterPaiementsPeriodeCSV()">Exporter les paiements de cette période (CSV)</button>
+<p class="section-lbl">Sauvegarde des données</p>
+<p class="page-sub" style="margin-top:-10px;">L'export CSV ci-dessus ne sert qu'à consulter les chiffres. Cette sauvegarde-ci contient TOUT (chambres, clients, paiements, réservations) et peut tout remettre en place en cas de problème.</p>
+<div class="stat" style="margin-bottom:14px;"><p class="lbl">Dernière sauvegarde (sur cet appareil)</p><p class="val" id="backupDate" style="font-size:16px;">Aucune</p></div>
+<button class="btn-ghost" onclick="telechargerSauvegarde()">Télécharger une sauvegarde complète</button>
+<button class="btn-ghost" style="margin-top:10px;" onclick="restaurerSauvegarde()">Restaurer depuis une sauvegarde</button>
+<input type="file" id="backupRestoreFile" accept="application/json" class="hidden">
 </section>
 <section class="screen" id="screen-clients">
 <p class="page-sub" style="cursor:pointer;margin-bottom:10px;" onclick="document.querySelector('.tab-btn[data-screen=accueil]').click()">← Retour</p>
@@ -364,13 +371,13 @@ nav.tabbar svg{width:20px;height:20px;}
 <div class="status-opt" data-s="occupee"><span>Occupée</span><span class="sw" style="background:var(--coral)"></span></div>
 <div class="status-opt" data-s="nettoyage"><span>À nettoyer</span><span class="sw" style="background:var(--amber)"></span></div>
 <div class="status-opt" data-s="hors_service"><span>Hors service</span><span class="sw" style="background:var(--slate)"></span></div>
-<label style="margin-top:16px;">Tarif par nuit (FCFA)</label>
-<input type="number" id="modalRoomTarif" placeholder="15000" min="0" max="5000000">
-<label>Note interne (visible par le personnel)</label>
+<label for="modalRoomTarif" style="margin-top:16px;">Tarif par nuit (FCFA)</label>
+<input type="number" id="modalRoomTarif" placeholder="15000" min="0" max="5000000" step="500">
+<label for="modalRoomNote">Note interne (visible par le personnel)</label>
 <textarea id="modalRoomNote" rows="2" maxlength="200" placeholder="Ex. climatiseur en panne, technicien prévu jeudi…" style="resize:vertical;font-family:'Manrope';"></textarea>
 <button class="btn-primary" onclick="enregistrerTarifChambre()">Enregistrer</button>
 <div id="modalProlongerBlock" class="hidden" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
-<label style="margin-top:0;">Prolonger le séjour (nuits en plus)</label>
+<label for="modalProlongerNuits" style="margin-top:0;">Prolonger le séjour (nuits en plus)</label>
 <input type="number" id="modalProlongerNuits" min="1" max="90" value="1">
 <button class="btn-ghost" onclick="prolongerSejour()">Prolonger</button>
 </div>
@@ -458,6 +465,9 @@ setTimeout(()=>t.classList.remove('show'), 1800);
 function escapeHtml(str){
 return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+// Empêche de sélectionner une date de réservation dans le passé.
+const champDateResa = document.getElementById('resDate');
+if(champDateResa){ champDateResa.min = new Date().toISOString().split('T')[0]; }
 window.handleLogin = async function(){
 const email = document.getElementById('authEmail').value.trim();
 const pass = document.getElementById('authPassword').value;
@@ -664,10 +674,111 @@ document.getElementById('statsRevenuMois').innerHTML = total_(snapMois).toLocale
 const paiementsValides = snapMois.docs.filter(d=>!d.data().annule);
 document.getElementById('statsNbPaiementsMois').textContent = paiementsValides.length;
 paiementsMoisCache = paiementsValides.map(d=>({id:d.id, ...d.data()}));
+afficherDerniereSauvegarde();
 }catch(err){
 toast('Erreur de chargement des statistiques : ' + err.message);
 }
 }
+// --- Sauvegarde / restauration complète des données d'un établissement ---
+// L'export CSV (ci-dessus) ne sert qu'à consulter des chiffres dans Excel ; il
+// est incomplet et ne peut pas être réinjecté dans l'app. Cette sauvegarde-ci
+// prend TOUT (chambres, clients, transactions, réservations) dans un seul
+// fichier JSON, et peut être restaurée intégralement — utile si des données
+// disparaissent (déjà arrivé sur l'app Résidence Biagné, sur le même plan
+// Firebase gratuit qui ne fait aucune sauvegarde automatique).
+const SAUVEGARDE_COLLECTIONS = ['chambres', 'clients', 'transactions', 'reservations'];
+// Les champs de type Timestamp Firestore ne se convertissent pas tels quels
+// en JSON : on les remplace par un marqueur {__ts: millisecondes} à l'export,
+// et on les reconvertit en vrai Timestamp à la restauration.
+function serialiserChampsSauvegarde(obj){
+const out = {};
+for(const [k, v] of Object.entries(obj)){
+out[k] = (v && typeof v.toMillis === 'function') ? { __ts: v.toMillis() } : v;
+}
+return out;
+}
+function deserialiserChampsSauvegarde(obj){
+const out = {};
+for(const [k, v] of Object.entries(obj)){
+out[k] = (v && typeof v === 'object' && v.__ts !== undefined) ? Timestamp.fromMillis(v.__ts) : v;
+}
+return out;
+}
+function cleSauvegardeLocale(){ return 'hebergo_derniere_sauvegarde_' + currentEtabId; }
+function afficherDerniereSauvegarde(){
+const el = document.getElementById('backupDate');
+if(!el || !currentEtabId) return;
+let iso = null;
+try{ iso = localStorage.getItem(cleSauvegardeLocale()); }catch(e){}
+if(!iso){ el.textContent = 'Aucune'; el.style.color = 'var(--coral)'; return; }
+const d = new Date(iso);
+const joursDepuis = Math.floor((new Date() - d) / (24*60*60*1000));
+el.textContent = d.toLocaleDateString('fr-FR') + (joursDepuis>0 ? ' (il y a '+joursDepuis+' jour'+(joursDepuis>1?'s':'')+')' : " (aujourd'hui)");
+el.style.color = joursDepuis > 7 ? 'var(--coral)' : 'var(--ink)';
+}
+window.telechargerSauvegarde = async function(){
+if(!currentEtabId) return;
+if(currentUserRole!=='admin' && currentUserRole!=='super_admin'){ toast('Accès réservé.'); return; }
+try{
+const data = { etablissementId: currentEtabId, exportedAt: new Date().toISOString(), version: 1 };
+for(const col of SAUVEGARDE_COLLECTIONS){
+const snap = await getDocs(collection(db, 'etablissements', currentEtabId, col));
+data[col] = snap.docs.map(d=>({ id: d.id, ...serialiserChampsSauvegarde(d.data()) }));
+}
+const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url; a.download = 'sauvegarde-'+currentEtabId+'-'+new Date().toISOString().slice(0,10)+'.json';
+document.body.appendChild(a); a.click(); document.body.removeChild(a);
+URL.revokeObjectURL(url);
+try{ localStorage.setItem(cleSauvegardeLocale(), new Date().toISOString()); }catch(e){}
+afficherDerniereSauvegarde();
+toast('Sauvegarde téléchargée');
+}catch(err){
+toast('Erreur lors de la sauvegarde : ' + err.message);
+}
+};
+window.restaurerSauvegarde = function(){
+if(currentUserRole!=='admin' && currentUserRole!=='super_admin'){ toast('Accès réservé.'); return; }
+document.getElementById('backupRestoreFile').click();
+};
+document.getElementById('backupRestoreFile').addEventListener('change', async (e)=>{
+const file = e.target.files[0];
+e.target.value = '';
+if(!file || !currentEtabId) return;
+let data;
+try{
+data = JSON.parse(await file.text());
+}catch(err){
+toast('Ce fichier n\'est pas une sauvegarde valide');
+return;
+}
+if(!data || typeof data !== 'object' || !SAUVEGARDE_COLLECTIONS.some(c=>Array.isArray(data[c]))){
+toast('Ce fichier n\'est pas une sauvegarde Hébergo valide');
+return;
+}
+const dateTxt = data.exportedAt ? new Date(data.exportedAt).toLocaleString('fr-FR') : 'date inconnue';
+showConfirm('Restaurer la sauvegarde du '+dateTxt+' ? Ça remplace les chambres, clients, paiements et réservations actuels de CET établissement par ceux du fichier. Les autres établissements ne sont pas touchés.', async ()=>{
+try{
+for(const col of SAUVEGARDE_COLLECTIONS){
+const items = Array.isArray(data[col]) ? data[col] : [];
+let batch = writeBatch(db);
+let count = 0;
+for(const item of items){
+const { id, ...champs } = item;
+if(!id) continue;
+batch.set(doc(db, 'etablissements', currentEtabId, col, id), deserialiserChampsSauvegarde(champs));
+count++;
+if(count % 400 === 0){ await batch.commit(); batch = writeBatch(db); }
+}
+await batch.commit();
+}
+toast('Sauvegarde restaurée');
+}catch(err){
+toast('Erreur pendant la restauration : ' + err.message);
+}
+});
+});
 // --- Export CSV ---
 function echapperCsv(valeur){
 let str = String(valeur ?? '');
