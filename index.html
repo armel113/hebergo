@@ -1142,8 +1142,11 @@ return `
 }).join('');
 }
 }
+const alertesEnCours = new Set();
 window.resoudreAlerte = async function(roomId){
 if(currentUserRole!=='admin' && currentUserRole!=='super_admin'){ toast('Seul le propriétaire du compte peut résoudre cette alerte.'); return; }
+if(alertesEnCours.has(roomId)) return;
+alertesEnCours.add(roomId);
 try{
 await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), {
 alerteSansPaiement: false, alerteClient: null, alerteDate: null
@@ -1151,9 +1154,18 @@ alerteSansPaiement: false, alerteClient: null, alerteDate: null
 toast('Alerte résolue');
 }catch(err){
 toast('Erreur : ' + err.message);
+}finally{
+alertesEnCours.delete(roomId);
 }
 };
+// Protection anti-double-tap : sans elle, un double-appui rapide sur "Départ
+// fait" (courant sur un ecran tactile, en particulier avec une connexion
+// lente) declenchait deux ecritures Firestore pour la meme chambre.
+const departsEnCours = new Set();
 window.markDeparted = async function(roomId, num){
+if(departsEnCours.has(roomId)) return;
+departsEnCours.add(roomId);
+try{
 const room = roomsCache.find(r=>r.id===roomId);
 const updates = { statut: 'nettoyage', client: null, departAujourdhui: false, dernierStatutPar: currentUser ? currentUser.email : '' };
 let hasPaiement = false;
@@ -1175,6 +1187,9 @@ updates.alerteDate = serverTimestamp();
 }
 await updateDoc(doc(db, 'etablissements', currentEtabId, 'chambres', roomId), updates);
 toast('Départ enregistré, chambre '+num+' à nettoyer');
+}finally{
+departsEnCours.delete(roomId);
+}
 };
 let roomFilterActif = 'tous';
 document.querySelectorAll('#roomFilterChips .chip').forEach(chip=>{
@@ -1770,10 +1785,12 @@ window.creerEtablissement = async function(){
 const nom = document.getElementById('newEtabNom').value.trim();
 const id = document.getElementById('newEtabId').value.trim();
 const nbChambres = parseInt(document.getElementById('newEtabChambres').value) || 0;
-const essaiJours = parseInt(document.getElementById('newEtabEssaiJours').value) || 0;
+let essaiJours = parseInt(document.getElementById('newEtabEssaiJours').value) || 0;
 if(!nom || nom.length < 2){ toast('Nom de l\'établissement requis'); return; }
 if(!id || id.length < 2){ toast('Identifiant requis'); return; }
 if(nbChambres < 1 || nbChambres > 300){ toast('Nombre de chambres entre 1 et 300'); return; }
+if(essaiJours < 0){ essaiJours = 0; }
+if(essaiJours > 90){ essaiJours = 90; }
 try{
 const existing = await getDoc(doc(db, 'etablissements', id));
 if(existing.exists()){ toast('Cet identifiant existe déjà, choisis-en un autre'); return; }
